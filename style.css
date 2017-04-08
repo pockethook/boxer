@@ -1,0 +1,23 @@
+#download {
+	display: none;
+}
+
+#top-panel {
+	display: none;
+}
+
+body {
+	margin: 0 0;
+}
+
+#display-panel {
+	position: relative;
+}
+.display {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	cursor: crosshair;
+}

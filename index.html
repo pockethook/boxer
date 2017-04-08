@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<script type="text/javascript" src="main.js"></script>
+		<link href="style.css" rel="stylesheet">
+	</head>
+	<body>
+		<div id="top-panel">
+			<div id="input-panel">
+				<ul>
+					<li><input type="file" id="file-image"/></li>
+					<li><input type="file" id="file-annotations"/></li>
+				</ul>
+			</div>
+			<div id="output-panel">
+				<div id="control-bar">
+					<button type="button" id="save">save</button>
+					<a id="download"></a>
+				</div>
+			</div>
+		</div>
+
+		<div id="display-panel">
+			<canvas class="display" id="canvas-image"></canvas>
+			<canvas class="display" id="canvas-boxes"></canvas>
+		</div>
+	</body>
+</html>
