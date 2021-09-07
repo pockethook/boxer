@@ -120,6 +120,13 @@ function find_annotation_index(annotations, position) {
 	return -1;
 }
 
+function shift_annotations(annotations, x, y) {
+	for (var i = 0; i < annotations.length; i++) {
+		annotations[i].x += x;
+		annotations[i].y += y;
+	}
+}
+
 document.addEventListener(
 	"DOMContentLoaded",
 	function() {
@@ -255,6 +262,22 @@ document.addEventListener(
 						break;
 					case 'u':
 						save.click();
+						break;
+					case 'J':
+						shift_annotations(annotations, 0, -1);
+						drawer.draw_all(annotations);
+						break;
+					case 'K':
+						shift_annotations(annotations, 0, 1);
+						drawer.draw_all(annotations);
+						break;
+					case 'H':
+						shift_annotations(annotations, -1, 0);
+						drawer.draw_all(annotations);
+						break;
+					case 'L':
+						shift_annotations(annotations, 1, 0);
+						drawer.draw_all(annotations);
 						break;
 				}
 			});
