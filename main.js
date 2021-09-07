@@ -238,7 +238,8 @@ document.addEventListener(
 					encodeURIComponent(JSON.stringify(annotations));
 				download.setAttribute('href', data);
 				download.setAttribute(
-					'download', image.name.split('.')[0] + '.json');
+					'download',
+					image.name.split('.').slice(0, -1).join('.') + '.json');
 				download.click();
 			});
 
