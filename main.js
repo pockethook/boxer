@@ -1,34 +1,54 @@
 "use strict"
 
-const Mouse = () => {
+const Clicker = () => {
+	let count = 0;
 	let active = false;
-	let x0 = 0;
-	let y0 = 0;
-	let x1 = 0;
-	let y1 = 0;
+	const points = [
+		{ x: 0, y: 0},
+		{ x: 0, y: 0},
+		{ x: 0, y: 0},
+		{ x: 0, y: 0},
+	];
+	const reset = () => {
+		count = 0;
+	};
 	return {
-		get_active: () => active,
-		set_active: new_active => {
-			active = new_active;
+		click: position => {
+			points[count] = { x: position.x, y: position.y };
+			count++;
 		},
-		begin: position => {
-			x0 = position.x;
-			y0 = position.y;
-		},
-		end: position => {
-			x1 = position.x;
-			y1 = position.y;
-		},
-		box: () => {
+		get_points: () => points.slice(0, count),
+		box: id => {
+			reset();
+			const xs = points.map(point => point.x);
+			const ys = points.map(point => point.y);
+			const min_x = Math.min(...xs);
+			const min_y = Math.min(...ys);
+			const max_x = Math.max(...xs);
+			const max_y = Math.max(...ys);
 			return {
-				x: Math.min(x0, x1),
-				y: Math.min(y0, y1),
-				width: Math.abs(x1 - x0),
-				height: Math.abs(y1 - y0)
+				id,
+				x: min_x,
+				y: min_y,
+				width: max_x - min_x,
+				height: max_y - min_y,
 			};
 		},
+		get_count: () => count,
+		decrease_count: () => {
+			count = Math.max(0, count - 1);
+		},
+		get_active: () => active,
+		activate: () => {
+			reset();
+			active = true;
+		},
+		deactivate: () => {
+			reset();
+			active = false;
+		},
 	};
-}
+};
 
 const Drawer = (canvas_image, canvas_boxes, new_image) => {
 	let image = new_image;
@@ -38,6 +58,8 @@ const Drawer = (canvas_image, canvas_boxes, new_image) => {
 	canvas_image.height = image.height;
 	canvas_boxes.width = image.width;
 	canvas_boxes.height = image.height;
+	const point_colour = 'black'
+	const point_width = 3;
 	const box_colour = 'red';
 	const box_width = 3;
 	const lines_colour = 'blue';
@@ -52,6 +74,29 @@ const Drawer = (canvas_image, canvas_boxes, new_image) => {
 		context_image.drawImage(
 			image, 0, 0, image.width, image.height,
 			0, 0, canvas_image.width, canvas_image.height);
+	};
+	const draw_point = position => {
+		context_boxes.strokeStyle = point_colour;
+		context_boxes.lineWidth = point_width;
+		context_boxes.beginPath();
+		context_boxes.moveTo(
+			(position.x - 1) * pixel_width(),
+			position.y * pixel_height());
+		context_boxes.lineTo(
+			(position.x + 1) * pixel_width(),
+			position.y * pixel_height());
+		context_boxes.stroke();
+		context_boxes.beginPath();
+		context_boxes.moveTo(
+			position.x * pixel_width(),
+			(position.y - 1) * pixel_height());
+		context_boxes.lineTo(
+			position.x * pixel_width(),
+			(position.y + 1) * pixel_height());
+		context_boxes.stroke();
+	};
+	const draw_points = positions => {
+		positions.forEach(position => draw_point(position));
 	};
 	const draw_box = box => {
 		context_boxes.strokeStyle = box_colour;
@@ -82,17 +127,23 @@ const Drawer = (canvas_image, canvas_boxes, new_image) => {
 		context_boxes.stroke();
 	};
 	return {
-		draw_all: (annotations, position) => {
-			draw_image();
+		draw_all: (annotations, position, points) => {
+			if (image.name) {
+				draw_image();
+			}
+			draw_boxes(annotations);
 			if (position) {
 				draw_lines(position);
 			}
-			draw_boxes(annotations);
+			if (points) {
+				draw_points(points);
+			}
 		},
 		draw_image,
 		draw_boxes,
 		draw_box,
 		draw_lines,
+		draw_points,
 		set_image: new_image => {
 			image = new_image;
 			canvas_image.width = image.width;
@@ -122,7 +173,7 @@ const find_best_annotation_index = (annotations, position) => {
 		(1 / box_area(annotation)));
 	const max_score = Math.max(...scores);
 	return scores.findIndex(score => score && score == max_score);
-}
+};
 
 const shift_annotations = (annotations, x, y) => {
 	return annotations.map(annotation => ({
@@ -130,7 +181,7 @@ const shift_annotations = (annotations, x, y) => {
 		x: annotation.x + x,
 		y: annotation.y + y,
 	}));
-}
+};
 
 document.addEventListener(
 	"DOMContentLoaded",
@@ -145,7 +196,6 @@ document.addEventListener(
 		const download = document.getElementById('download');
 
 		let image = {
-			name: 'image.jpg',
 			width: window.innerWidth,
 			height: window.innerHeight
 		};
@@ -153,17 +203,22 @@ document.addEventListener(
 		const drawer = Drawer(canvas_image, canvas_boxes, image);
 		let annotations = [];
 
+		let clicking = false;
+		const clicker = Clicker();
+
+		let position = false;
+
 		const set_image = event => {
 			image = new Image();
 			image.onload = () => {
 				drawer.set_image(image);
-				const position = mouse_position(event);
-				drawer.draw_all(annotations, position);
+				position = mouse_position(event);
+				drawer.draw_all(annotations, position, clicker.get_points());
 			};
 			const file = event.target.files[0];
 			image.name = file.name;
 			image.src = window.URL.createObjectURL(file);
-		}
+		};
 
 		const load_annotations = event => {
 			const reader = new FileReader();
@@ -172,12 +227,10 @@ document.addEventListener(
 			};
 			const file = event.target.files[0];
 			reader.readAsText(file, 'utf-8');
-		}
+		};
 
 		input.addEventListener('change', set_image);
 		file_annotations.addEventListener('change', load_annotations);
-
-		const mouse = Mouse();
 
 		const mouse_position = event => {
 			const rect = canvas_boxes.getBoundingClientRect();
@@ -189,19 +242,22 @@ document.addEventListener(
 			};
 		};
 
+
 		canvas_boxes.addEventListener(
 			'mousedown',
 			event => {
-				if (!mouse.get_active()) {
-					if (event.which == 2 || event.button == 4) {
-						const position = mouse_position(event);
-						const index = find_best_annotation_index(
-							annotations, position);
-						if (index >= 0) {
-							annotations.splice(index, 1);
-							drawer.draw_lines(position);
-							drawer.draw_boxes(annotations);
-						}
+				if (event.which == 2 || event.button == 4) {
+					position = mouse_position(event);
+					const index = find_best_annotation_index(
+						annotations, position);
+					// Delete box
+					if (index >= 0) {
+						annotations.splice(index, 1);
+						drawer.draw_all(
+							annotations, position, clicker.get_points());
+					} else if (clicker.get_active()) {
+						// Remove last click
+						clicker.decrease_count();
 					}
 				}
 			});
@@ -209,30 +265,22 @@ document.addEventListener(
 		canvas_boxes.addEventListener(
 			'mousemove',
 			event => {
-				const position = mouse_position(event);
-				drawer.draw_boxes(annotations);
-				drawer.draw_lines(position);
-				if (mouse.get_active()) {
-					mouse.end(position);
-					const box = mouse.box();
-					drawer.draw_box(box);
-				}
-				
+				position = mouse_position(event);
+				drawer.draw_all(
+					annotations, position, clicker.get_points());
 			});
 
 		canvas_boxes.addEventListener(
 			'click',
 			event => {
-				const position = mouse_position(event);
-				if (!mouse.get_active()) {
-					mouse.begin(position);
-					mouse.set_active(true);
-				} else {
-					mouse.end(position);
-					mouse.set_active(false);
-					annotations.push(mouse.box());
-					drawer.draw_lines(position);
-					drawer.draw_boxes(annotations);
+				position = mouse_position(event);
+				if (clicker.get_active()) {
+					clicker.click(position);
+					if (clicker.get_count() == 4) {
+						annotations.push(clicker.box(0))
+					}
+					drawer.draw_all(
+						annotations, position, clicker.get_points());
 				}
 			});
 
@@ -252,13 +300,21 @@ document.addEventListener(
 			'keydown',
 			event => {
 				switch (event.key) {
+					case 'Escape':
+						clicker.deactivate();
+						break;
+					case 'r':
+						clicker.activate();
+						break;
 					case 'j':
 						drawer.scale(1.1);
-						drawer.draw_all(annotations);
+						drawer.draw_all(
+							annotations, position, clicker.get_points());
 						break;
 					case 'k':
 						drawer.scale(0.9);
-						drawer.draw_all(annotations);
+						drawer.draw_all(
+							annotations, position, clicker.get_points());
 						break;
 					case 'o':
 						input.click();
@@ -271,19 +327,23 @@ document.addEventListener(
 						break;
 					case 'J':
 						shift_annotations(annotations, 0, -1);
-						drawer.draw_all(annotations);
+						drawer.draw_all(
+							annotations, position, clicker.get_points());
 						break;
 					case 'K':
 						shift_annotations(annotations, 0, 1);
-						drawer.draw_all(annotations);
+						drawer.draw_all(
+							annotations, position, clicker.get_points());
 						break;
 					case 'H':
 						shift_annotations(annotations, -1, 0);
-						drawer.draw_all(annotations);
+						drawer.draw_all(
+							annotations, position, clicker.get_points());
 						break;
 					case 'L':
 						shift_annotations(annotations, 1, 0);
-						drawer.draw_all(annotations);
+						drawer.draw_all(
+							annotations, position, clicker.get_points());
 						break;
 				}
 			});
