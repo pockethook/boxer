@@ -50,14 +50,15 @@ const Clicker = () => {
 	};
 };
 
-const Drawer = (canvas_image, canvas_boxes, new_image) => {
+const Drawer = (
+	canvas_image, canvas_boxes, new_image, window_width, window_height) => {
 	let image = new_image;
 	const context_image = canvas_image.getContext("2d");
 	const context_boxes = canvas_boxes.getContext("2d");
-	canvas_image.width = image.width;
-	canvas_image.height = image.height;
-	canvas_boxes.width = image.width;
-	canvas_boxes.height = image.height;
+	canvas_image.width = window_width;
+	canvas_image.height = window_height;
+	canvas_boxes.width = window_width;
+	canvas_boxes.height = window_height;
 	const point_colour = 'black'
 	const point_width = 3;
 	const box_colour = 'red';
@@ -147,6 +148,16 @@ const Drawer = (canvas_image, canvas_boxes, new_image) => {
 			canvas_boxes.width, position.y * pixel_height());
 		context_boxes.stroke();
 	};
+	const reset_scale = (width, height) => {
+		const width_ratio = width / image.width;
+		const height_ratio = height / image.height;
+
+		const ratio = Math.min(width_ratio, height_ratio);
+		canvas_image.width = image.width * ratio;
+		canvas_image.height = image.height * ratio;
+		canvas_boxes.width = image.width * ratio;
+		canvas_boxes.height = image.height * ratio;
+	};
 	return {
 		draw_all: (label_map, annotations, position, points) => {
 			if (image.name) {
@@ -160,13 +171,11 @@ const Drawer = (canvas_image, canvas_boxes, new_image) => {
 				draw_points(points);
 			}
 		},
-		set_image: new_image => {
+		set_image: (new_image, width, height) => {
 			image = new_image;
-			canvas_image.width = image.width;
-			canvas_image.height = image.height;
-			canvas_boxes.width = image.width;
-			canvas_boxes.height = image.height;
+			reset_scale(width, height);
 		},
+		reset_scale,
 		scale: factor => {
 			canvas_image.width *= factor;
 			canvas_image.height *= factor;
@@ -217,7 +226,9 @@ document.addEventListener(
 			height: window.innerHeight
 		};
 
-		const drawer = Drawer(canvas_image, canvas_boxes, image);
+		const drawer = Drawer(
+			canvas_image, canvas_boxes, image,
+			window.innerWidth, window.innerHeight);
 		let annotations = [];
 		let label_map = [];
 
@@ -229,7 +240,7 @@ document.addEventListener(
 		const set_image = event => {
 			image = new Image();
 			image.onload = () => {
-				drawer.set_image(image);
+				drawer.set_image(image, window.innerWidth, window.innerHeight);
 				position = mouse_position(event);
 				drawer.draw_all(
 					label_map, annotations, position, clicker.get_points());
@@ -270,7 +281,6 @@ document.addEventListener(
 				y: Math.round(canvas_y * image.height / rect.height)
 			};
 		};
-
 
 		canvas_boxes.addEventListener(
 			'mousedown',
@@ -314,6 +324,16 @@ document.addEventListener(
 						label_map, annotations,
 						position, clicker.get_points());
 				}
+			});
+
+		canvas_boxes.addEventListener(
+			'dblclick',
+			event => {
+				position = mouse_position(event);
+				drawer.reset_scale(window.innerWidth, window.innerHeight);
+				drawer.draw_all(
+					label_map, annotations,
+					position, clicker.get_points());
 			});
 
 		save.addEventListener(
