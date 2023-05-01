@@ -98,8 +98,11 @@ const Drawer = (canvas_image, canvas_boxes, new_image) => {
 	const draw_points = positions => {
 		positions.forEach(position => draw_point(position));
 	};
-	const draw_box = box => {
-		context_boxes.strokeStyle = box_colour;
+	const draw_box = (label_map, box) => {
+		const label = box.label;
+		const label_colour =
+			label in label_map ? label_map[label]: box_colour;
+		context_boxes.strokeStyle = label_colour;
 		context_boxes.lineWidth = box_width;
 		context_boxes.strokeRect(
 			box.x * pixel_width(),
@@ -107,10 +110,10 @@ const Drawer = (canvas_image, canvas_boxes, new_image) => {
 			box.width * pixel_width(),
 			box.height * pixel_height());
 	};
-	const draw_boxes = annotations => {
+	const draw_boxes = (label_map, annotations) => {
 		context_boxes.clearRect(
 			0, 0, canvas_boxes.width, canvas_boxes.height);
-		annotations.forEach(annotation => draw_box(annotation));
+		annotations.forEach(annotation => draw_box(label_map, annotation));
 	};
 	const draw_lines = position => {
 		context_boxes.strokeStyle = lines_colour;
@@ -127,11 +130,11 @@ const Drawer = (canvas_image, canvas_boxes, new_image) => {
 		context_boxes.stroke();
 	};
 	return {
-		draw_all: (annotations, position, points) => {
+		draw_all: (label_map, annotations, position, points) => {
 			if (image.name) {
 				draw_image();
 			}
-			draw_boxes(annotations);
+			draw_boxes(label_map, annotations);
 			if (position) {
 				draw_lines(position);
 			}
@@ -139,11 +142,6 @@ const Drawer = (canvas_image, canvas_boxes, new_image) => {
 				draw_points(points);
 			}
 		},
-		draw_image,
-		draw_boxes,
-		draw_box,
-		draw_lines,
-		draw_points,
 		set_image: new_image => {
 			image = new_image;
 			canvas_image.width = image.width;
@@ -188,6 +186,7 @@ document.addEventListener(
 	() => {
 		const input = document.getElementById('file-image');
 		const file_annotations = document.getElementById('file-annotations');
+		const file_label_map = document.getElementById('file-label-map');
 
 		const canvas_image = document.getElementById('canvas-image');
 		const canvas_boxes = document.getElementById('canvas-boxes');
@@ -202,6 +201,7 @@ document.addEventListener(
 
 		const drawer = Drawer(canvas_image, canvas_boxes, image);
 		let annotations = [];
+		let label_map = [];
 
 		let clicking = false;
 		const clicker = Clicker();
@@ -213,7 +213,8 @@ document.addEventListener(
 			image.onload = () => {
 				drawer.set_image(image);
 				position = mouse_position(event);
-				drawer.draw_all(annotations, position, clicker.get_points());
+				drawer.draw_all(
+					label_map, annotations, position, clicker.get_points());
 			};
 			const file = event.target.files[0];
 			image.name = file.name;
@@ -229,8 +230,18 @@ document.addEventListener(
 			reader.readAsText(file, 'utf-8');
 		};
 
+		const load_label_map = event => {
+			const reader = new FileReader();
+			reader.onload = () => {
+				label_map = JSON.parse(reader.result);
+			};
+			const file = event.target.files[0];
+			reader.readAsText(file, 'utf-8');
+		};
+
 		input.addEventListener('change', set_image);
 		file_annotations.addEventListener('change', load_annotations);
+		file_label_map.addEventListener('change', load_label_map);
 
 		const mouse_position = event => {
 			const rect = canvas_boxes.getBoundingClientRect();
@@ -254,7 +265,8 @@ document.addEventListener(
 					if (index >= 0) {
 						annotations.splice(index, 1);
 						drawer.draw_all(
-							annotations, position, clicker.get_points());
+							label_map, annotations,
+							position, clicker.get_points());
 					} else if (clicker.get_active()) {
 						// Remove last click
 						clicker.decrease_count();
@@ -267,7 +279,8 @@ document.addEventListener(
 			event => {
 				position = mouse_position(event);
 				drawer.draw_all(
-					annotations, position, clicker.get_points());
+					label_map, annotations,
+					position, clicker.get_points());
 			});
 
 		canvas_boxes.addEventListener(
@@ -280,7 +293,8 @@ document.addEventListener(
 						annotations.push(clicker.box(0))
 					}
 					drawer.draw_all(
-						annotations, position, clicker.get_points());
+						label_map, annotations,
+						position, clicker.get_points());
 				}
 			});
 
@@ -300,6 +314,9 @@ document.addEventListener(
 			'keydown',
 			event => {
 				switch (event.key) {
+					case 'a':
+						file_label_map.click();
+						break;
 					case 'Escape':
 						clicker.deactivate();
 						break;
@@ -309,12 +326,14 @@ document.addEventListener(
 					case 'j':
 						drawer.scale(1.1);
 						drawer.draw_all(
-							annotations, position, clicker.get_points());
+							label_map, annotations,
+							position, clicker.get_points());
 						break;
 					case 'k':
 						drawer.scale(0.9);
 						drawer.draw_all(
-							annotations, position, clicker.get_points());
+							label_map, annotations,
+							position, clicker.get_points());
 						break;
 					case 'o':
 						input.click();
@@ -328,22 +347,26 @@ document.addEventListener(
 					case 'J':
 						shift_annotations(annotations, 0, -1);
 						drawer.draw_all(
-							annotations, position, clicker.get_points());
+							label_map, annotations,
+							position, clicker.get_points());
 						break;
 					case 'K':
 						shift_annotations(annotations, 0, 1);
 						drawer.draw_all(
-							annotations, position, clicker.get_points());
+							label_map, annotations,
+							position, clicker.get_points());
 						break;
 					case 'H':
 						shift_annotations(annotations, -1, 0);
 						drawer.draw_all(
-							annotations, position, clicker.get_points());
+							label_map, annotations,
+							position, clicker.get_points());
 						break;
 					case 'L':
 						shift_annotations(annotations, 1, 0);
 						drawer.draw_all(
-							annotations, position, clicker.get_points());
+							label_map, annotations,
+							position, clicker.get_points());
 						break;
 				}
 			});
