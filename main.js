@@ -64,6 +64,7 @@ const Drawer = (canvas_image, canvas_boxes, new_image) => {
 	const box_width = 3;
 	const lines_colour = 'blue';
 	const lines_width = 2;
+	const text_offset = 4;
 	const pixel_width = () => {
 		return canvas_image.width / image.width;
 	};
@@ -98,7 +99,15 @@ const Drawer = (canvas_image, canvas_boxes, new_image) => {
 	const draw_points = positions => {
 		positions.forEach(position => draw_point(position));
 	};
-	const draw_box = (label_map, box) => {
+	const draw_text = box => {
+		context_boxes.fillStyle = 'white';
+		context_boxes.fillText(
+			box.label + ' ' +
+				Math.round(box.width) + 'x' + Math.round(box.height),
+			box.x * pixel_width(),
+			(box.y - text_offset) * pixel_height());
+	}
+	const draw_box = (label_map, box, highlight) => {
 		const label = box.label;
 		const label_colour =
 			label in label_map ? label_map[label]: box_colour;
@@ -109,11 +118,20 @@ const Drawer = (canvas_image, canvas_boxes, new_image) => {
 			box.y * pixel_height(),
 			box.width * pixel_width(),
 			box.height * pixel_height());
+		if (highlight) {
+			draw_text(box);
+		}
 	};
-	const draw_boxes = (label_map, annotations) => {
+	const draw_boxes = (label_map, annotations, position) => {
 		context_boxes.clearRect(
 			0, 0, canvas_boxes.width, canvas_boxes.height);
-		annotations.forEach(annotation => draw_box(label_map, annotation));
+		annotations.forEach(annotation => draw_box(
+			label_map, annotation, false));
+		const index = find_best_annotation_index(
+			annotations, position);
+		if (index >= 0) {
+			draw_box(label_map, annotations[index], true);
+		}
 	};
 	const draw_lines = position => {
 		context_boxes.strokeStyle = lines_colour;
@@ -134,7 +152,7 @@ const Drawer = (canvas_image, canvas_boxes, new_image) => {
 			if (image.name) {
 				draw_image();
 			}
-			draw_boxes(label_map, annotations);
+			draw_boxes(label_map, annotations, position);
 			if (position) {
 				draw_lines(position);
 			}
