@@ -18,7 +18,7 @@ const Clicker = () => {
 			count++;
 		},
 		get_points: () => points.slice(0, count),
-		box: id => {
+		box: label => {
 			reset();
 			const xs = points.map(point => point.x);
 			const ys = points.map(point => point.y);
@@ -27,7 +27,7 @@ const Clicker = () => {
 			const max_x = Math.max(...xs);
 			const max_y = Math.max(...ys);
 			return {
-				id,
+				label,
 				x: min_x,
 				y: min_y,
 				width: max_x - min_x,
@@ -77,8 +77,8 @@ const Drawer = (
 			image, 0, 0, image.width, image.height,
 			0, 0, canvas_image.width, canvas_image.height);
 	};
-	const draw_point = position => {
-		context_boxes.strokeStyle = point_colour;
+	const draw_point = (position, colour) => {
+		context_boxes.strokeStyle = colour;
 		context_boxes.lineWidth = point_width;
 		context_boxes.beginPath();
 		context_boxes.moveTo(
@@ -97,8 +97,8 @@ const Drawer = (
 			(position.y + 1) * pixel_height());
 		context_boxes.stroke();
 	};
-	const draw_points = positions => {
-		positions.forEach(position => draw_point(position));
+	const draw_points = (positions, colour) => {
+		positions.forEach(position => draw_point(position, colour));
 	};
 	const draw_text = box => {
 		context_boxes.fillStyle = 'white';
@@ -134,8 +134,8 @@ const Drawer = (
 			draw_box(label_map, annotations[index], true);
 		}
 	};
-	const draw_lines = position => {
-		context_boxes.strokeStyle = lines_colour;
+	const draw_lines = (position, colour) => {
+		context_boxes.strokeStyle = colour;
 		context_boxes.lineWidth = lines_width;
 		context_boxes.beginPath();
 		context_boxes.moveTo(position.x * pixel_width(), 0);
@@ -159,16 +159,24 @@ const Drawer = (
 		canvas_boxes.height = image.height * ratio;
 	};
 	return {
-		draw_all: (label_map, annotations, position, points) => {
+		draw_all: (label_map, annotations, position, points, label_index) => {
 			if (image.name) {
 				draw_image();
 			}
 			draw_boxes(label_map, annotations, position);
 			if (position) {
-				draw_lines(position);
+				const colour =
+					label_map ?
+					label_map[Object.keys(label_map)[label_index]]:
+					lines_colour;
+				draw_lines(position, colour);
 			}
 			if (points) {
-				draw_points(points);
+				const colour =
+					label_map ?
+					label_map[Object.keys(label_map)[label_index]]:
+					point_colour;
+				draw_points(points, colour);
 			}
 		},
 		set_image: (new_image, width, height) => {
@@ -231,6 +239,7 @@ document.addEventListener(
 			window.innerWidth, window.innerHeight);
 		let annotations = [];
 		let label_map = [];
+		let label_index = 0;
 
 		let clicking = false;
 		const clicker = Clicker();
@@ -243,7 +252,8 @@ document.addEventListener(
 				drawer.set_image(image, window.innerWidth, window.innerHeight);
 				position = mouse_position(event);
 				drawer.draw_all(
-					label_map, annotations, position, clicker.get_points());
+					label_map, annotations,
+					position, clicker.get_points(), label_index);
 			};
 			const file = event.target.files[0];
 			image.name = file.name;
@@ -294,7 +304,7 @@ document.addEventListener(
 						annotations.splice(index, 1);
 						drawer.draw_all(
 							label_map, annotations,
-							position, clicker.get_points());
+							position, clicker.get_points(), label_index);
 					} else if (clicker.get_active()) {
 						// Remove last click
 						clicker.decrease_count();
@@ -308,7 +318,7 @@ document.addEventListener(
 				position = mouse_position(event);
 				drawer.draw_all(
 					label_map, annotations,
-					position, clicker.get_points());
+					position, clicker.get_points(), label_index);
 			});
 
 		canvas_boxes.addEventListener(
@@ -318,11 +328,15 @@ document.addEventListener(
 				if (clicker.get_active()) {
 					clicker.click(position);
 					if (clicker.get_count() == 4) {
-						annotations.push(clicker.box(0))
+						const label =
+							label_map ?
+							Object.keys(label_map)[label_index] :
+							label_index;
+						annotations.push(clicker.box(label))
 					}
 					drawer.draw_all(
 						label_map, annotations,
-						position, clicker.get_points());
+						position, clicker.get_points(), label_index);
 				}
 			});
 
@@ -333,7 +347,7 @@ document.addEventListener(
 				drawer.reset_scale(window.innerWidth, window.innerHeight);
 				drawer.draw_all(
 					label_map, annotations,
-					position, clicker.get_points());
+					position, clicker.get_points(), label_index);
 			});
 
 		save.addEventListener(
@@ -351,61 +365,95 @@ document.addEventListener(
 		window.addEventListener(
 			'keydown',
 			event => {
-				switch (event.key) {
-					case 'a':
-						file_label_map.click();
-						break;
-					case 'Escape':
-						clicker.deactivate();
-						break;
-					case 'r':
-						clicker.activate();
-						break;
-					case 'j':
-						drawer.scale(1.1);
-						drawer.draw_all(
-							label_map, annotations,
-							position, clicker.get_points());
-						break;
-					case 'k':
-						drawer.scale(0.9);
-						drawer.draw_all(
-							label_map, annotations,
-							position, clicker.get_points());
-						break;
-					case 'o':
-						input.click();
-						break;
-					case 'i':
-						file_annotations.click();
-						break;
-					case 'u':
-						save.click();
-						break;
-					case 'J':
-						shift_annotations(annotations, 0, -1);
-						drawer.draw_all(
-							label_map, annotations,
-							position, clicker.get_points());
-						break;
-					case 'K':
-						shift_annotations(annotations, 0, 1);
-						drawer.draw_all(
-							label_map, annotations,
-							position, clicker.get_points());
-						break;
-					case 'H':
-						shift_annotations(annotations, -1, 0);
-						drawer.draw_all(
-							label_map, annotations,
-							position, clicker.get_points());
-						break;
-					case 'L':
-						shift_annotations(annotations, 1, 0);
-						drawer.draw_all(
-							label_map, annotations,
-							position, clicker.get_points());
-						break;
+
+				const index_keys = '1234567890-='.split('')
+				if (index_keys.includes(event.key)) {
+					label_index =
+						index_keys.findIndex(key => key == event.key);
+					drawer.draw_all(
+						label_map, annotations,
+						position, clicker.get_points(), label_index);
+				} else {
+					switch (event.key) {
+						case 'a':
+							file_label_map.click();
+							break;
+						case 'Escape':
+							clicker.deactivate();
+							break;
+						case 'r':
+							clicker.activate();
+							break;
+						case 'j':
+							drawer.scale(1.1);
+							drawer.draw_all(
+								label_map, annotations,
+								position, clicker.get_points(), label_index);
+							break;
+						case 'k':
+							drawer.scale(0.9);
+							drawer.draw_all(
+								label_map, annotations,
+								position, clicker.get_points(), label_index);
+							break;
+						case 'o':
+							input.click();
+							break;
+						case 'i':
+							file_annotations.click();
+							break;
+						case 'u':
+							save.click();
+							break;
+						case 'J':
+							shift_annotations(annotations, 0, -1);
+							drawer.draw_all(
+								label_map, annotations,
+								position, clicker.get_points(), label_index);
+							break;
+						case 'K':
+							shift_annotations(annotations, 0, 1);
+							drawer.draw_all(
+								label_map, annotations,
+								position, clicker.get_points(), label_index);
+							break;
+						case 'H':
+							shift_annotations(annotations, -1, 0);
+							drawer.draw_all(
+								label_map, annotations,
+								position, clicker.get_points(), label_index);
+							break;
+						case 'L':
+							shift_annotations(annotations, 1, 0);
+							drawer.draw_all(
+								label_map, annotations,
+								position, clicker.get_points(), label_index);
+							break;
+						case '1':
+							label_index = 0;
+							drawer.draw_all(
+								label_map, annotations,
+								position, clicker.get_points(), label_index);
+							break;
+						case '2':
+							label_index = 1;
+							drawer.draw_all(
+								label_map, annotations,
+								position, clicker.get_points(), label_index);
+							break;
+						case '!':
+							label_index = 12;
+							drawer.draw_all(
+								label_map, annotations,
+								position, clicker.get_points(), label_index);
+							break;
+						case '@':
+							label_index = 13;
+							drawer.draw_all(
+								label_map, annotations,
+								position, clicker.get_points(), label_index);
+							break;
+					}
 				}
 			});
 	});
