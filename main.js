@@ -157,14 +157,16 @@ const Drawer = (
 		}
 	};
 
-	const draw_boxes = (label_map, annotations, annotations_index, edge) => {
+	const clear_boxes = () => {
 		const canvas_origin = transform_window_canvas({x: 0, y: 0});
 		const canvas_end = transform_window_canvas(
 			{x: canvas_boxes.width, y: canvas_boxes.height});
 		context_boxes.clearRect(
 			canvas_origin.x, canvas_origin.y,
 			canvas_end.x - canvas_origin.x, canvas_end.y - canvas_origin.y);
+	};
 
+	const draw_boxes = (label_map, annotations, annotations_index, edge) => {
 		annotations.forEach((annotation, index) => draw_box(
 			label_map,
 			annotation,
@@ -266,11 +268,14 @@ const Drawer = (
 	return {
 		draw_all: (
 			label_map, annotations, canvas_position, points,
-			label_index, annotations_index, edge) => {
+			label_index, annotations_index, edge, annotations_hide) => {
 
 			draw_image();
 
-			draw_boxes(label_map, annotations, annotations_index, edge);
+			clear_boxes();
+			if (!annotations_hide) {
+				draw_boxes(label_map, annotations, annotations_index, edge);
+			}
 
 			const colour = label_colour(label_map, label_index);
 			draw_lines(canvas_position, colour);
@@ -401,6 +406,7 @@ document.addEventListener(
 
 		let annotations = [];
 		let annotations_index = -1;
+		let annotations_hide = false;
 
 		let label_map = {
 		  0: "#66ff66",
@@ -436,7 +442,7 @@ document.addEventListener(
 				drawer.draw_all(
 					label_map, annotations,
 					position, clicker.get_points(), label_index,
-					annotations_index, edge);
+					annotations_index, edge, annotations_hide);
 			};
 			const file = event.target.files[0];
 			image.name = file.name;
@@ -487,7 +493,7 @@ document.addEventListener(
 				drawer.draw_all(
 					label_map, annotations,
 					position, clicker.get_points(), label_index,
-					annotations_index, edge);
+					annotations_index, edge, annotations_hide);
 			},
 			{passive: true});
 
@@ -510,7 +516,7 @@ document.addEventListener(
 							drawer.draw_all(
 								label_map, annotations,
 								position, clicker.get_points(), label_index,
-								annotations_index, edge);
+								annotations_index, edge, annotations_hide);
 						}
 					}
 				// Left button drag
@@ -554,7 +560,7 @@ document.addEventListener(
 				drawer.draw_all(
 					label_map, annotations,
 					position, clicker.get_points(), label_index,
-					annotations_index, edge);
+					annotations_index, edge, annotations_hide);
 			});
 
 		canvas_boxes.addEventListener(
@@ -616,7 +622,7 @@ document.addEventListener(
 					drawer.draw_all(
 						label_map, annotations,
 						position, clicker.get_points(), label_index,
-						annotations_index, edge);
+						annotations_index, edge, annotations_hide);
 				}
 			});
 
@@ -630,7 +636,7 @@ document.addEventListener(
 				drawer.draw_all(
 					label_map, annotations,
 					position, clicker.get_points(), label_index,
-					annotations_index, edge);
+					annotations_index, edge, annotations_hide);
 			});
 
 		// Save
@@ -676,6 +682,12 @@ document.addEventListener(
 							edge = -1;
 							annotations_index = -1;
 							clicker.activate();
+							redraw = true;
+							break;
+
+						// Toggle hide annotations
+						case 'a':
+							annotations_hide = !annotations_hide;
 							redraw = true;
 							break;
 
@@ -761,7 +773,7 @@ document.addEventListener(
 					drawer.draw_all(
 						label_map, annotations,
 						position, clicker.get_points(), label_index,
-						annotations_index, edge);
+						annotations_index, edge, annotations_hide);
 				}
 			});
 	});
