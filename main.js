@@ -90,21 +90,57 @@ const Drawer = (
 		context_boxes.lineTo(canvas_point.x, canvas_point.y + 1);
 		context_boxes.stroke();
 	};
+
 	const draw_points = (image_points, colour) => {
 		image_points.forEach(
 			image_point => draw_point(image_point, colour));
 	};
 
-	const draw_text = box => {
+	const draw_text = (box, colour) => {
 		const canvas_box = transform_box_image_canvas(box);
-		context_boxes.fillStyle = text_colour
+		context_boxes.fillStyle = colour;
 		context_boxes.fillText(
 			box.label + ' ' +
 				Math.round(box.width) + 'x' + Math.round(box.height),
 			canvas_box.x, canvas_box.y - text_offset);
 	}
 
-	const draw_box = (label_map, box, highlight) => {
+	const draw_box_top = box => {
+		context_boxes.moveTo(box.x, box.y);
+		context_boxes.lineTo(box.x + box.width, box.y);
+	}
+
+	const draw_box_right = box => {
+		context_boxes.moveTo(box.x + box.width, box.y);
+		context_boxes.lineTo(box.x + box.width, box.y + box.height);
+	}
+
+	const draw_box_bottom = box => {
+		context_boxes.moveTo(box.x, box.y + box.height);
+		context_boxes.lineTo(box.x + box.width, box.y + box.height);
+	}
+
+	const draw_box_left = box => {
+		context_boxes.moveTo(box.x, box.y);
+		context_boxes.lineTo(box.x, box.y + box.height);
+	}
+
+	const draw_box_edge = (box, edge) => {
+		context_boxes.strokeStyle = box_edge_colour;
+		context_boxes.beginPath();
+		if (edge == 0) {
+			draw_box_top(box);
+		} else if (edge == 1) {
+			draw_box_right(box);
+		} else if (edge == 2) {
+			draw_box_bottom(box);
+		} else if (edge == 3) {
+			draw_box_left(box);
+		}
+		context_boxes.stroke();
+	}
+
+	const draw_box = (label_map, box, highlight, edge) => {
 		const canvas_box = transform_box_image_canvas(box);
 		const label = box.label;
 		const colour =
@@ -112,35 +148,36 @@ const Drawer = (
 		context_boxes.strokeStyle = colour;
 		context_boxes.lineWidth = box_width;
 		context_boxes.strokeRect(
-			canvas_box.x,
-			canvas_box.y,
-			canvas_box.width,
-			canvas_box.height);
+			canvas_box.x, canvas_box.y, canvas_box.width, canvas_box.height);
 		if (highlight) {
-			draw_text(box);
+			draw_text(box, colour);
+			if (edge != -1) {
+				draw_box_edge(canvas_box, edge);
+			}
 		}
 	};
-	const draw_boxes = (label_map, annotations, position) => {
-		const canvas_origin = transform_window_canvas(
-			{x: 0, y: 0});
+
+	const draw_boxes = (label_map, annotations, annotations_index, edge) => {
+		const canvas_origin = transform_window_canvas({x: 0, y: 0});
 		const canvas_end = transform_window_canvas(
 			{x: canvas_boxes.width, y: canvas_boxes.height});
 		context_boxes.clearRect(
 			canvas_origin.x, canvas_origin.y,
 			canvas_end.x - canvas_origin.x, canvas_end.y - canvas_origin.y);
 
-		annotations.forEach(annotation => draw_box(
-			label_map, annotation, false));
+		annotations.forEach((annotation, index) => draw_box(
+			label_map,
+			annotation,
+			index == annotations_index,
+			index == annotations_index ? edge : -1));
 
-		const index = find_best_annotation_index(
-			annotations, transform_canvas_image(position));
-		if (index >= 0) {
-			draw_box(label_map, annotations[index], true);
+		if (annotations_index >= 0) {
+			draw_box(label_map, annotations[annotations_index], true, edge);
 		}
 	};
+
 	const draw_lines = (canvas_position, colour) => {
-		const canvas_origin = transform_window_canvas(
-			{x: 0, y: 0});
+		const canvas_origin = transform_window_canvas({x: 0, y: 0});
 		const canvas_end = transform_window_canvas(
 			{x: canvas_boxes.width, y: canvas_boxes.height});
 		context_boxes.strokeStyle = colour;
@@ -154,10 +191,12 @@ const Drawer = (
 		context_boxes.lineTo(canvas_end.x, canvas_position.y);
 		context_boxes.stroke();
 	};
+
 	const reset_scale = (window_width, window_height) => {
 		update_canvas_dimensions(window_width, window_height);
 		update_scaling();
 	};
+
 	const transform_window_canvas = position => {
 		const {a, d, e: tx, f: ty} = context_image.getTransform();
 		return {
@@ -165,18 +204,21 @@ const Drawer = (
 			y: (position.y - ty) / d,
 		};
 	};
+
 	const transform_canvas_image = position => {
 		return {
 			x: (position.x - offset_x) / scale,
 			y: (position.y - offset_y) / scale,
 		};
 	};
+
 	const transform_image_canvas = position => {
 		return {
 			x: position.x * scale + offset_x,
 			y: position.y * scale + offset_y,
 		};
 	};
+
 	const transform_box_image_canvas = box => {
 		return {
 			x: box.x * scale + offset_x,
@@ -185,11 +227,21 @@ const Drawer = (
 			height: box.height * scale,
 		};
 	};
+
 	const clear_canvas = () => {
 		context_image.clearRect(
 			0, 0, canvas_image.width, canvas_image.height);
 		context_boxes.clearRect(
 			0, 0, canvas_boxes.width, canvas_boxes.height);
+	};
+
+	const translate = canvas_position_delta => {
+		clear_canvas();
+
+		context_image.translate(
+			canvas_position_delta.x, canvas_position_delta.y);
+		context_boxes.translate(
+			canvas_position_delta.x, canvas_position_delta.y);
 	};
 
 	let image = new_image;
@@ -209,15 +261,16 @@ const Drawer = (
 	const box_width = 1;
 	const lines_width = 1;
 	const text_offset = 4;
-	const text_colour = 'white'
+	const box_edge_colour = 'red'
 
 	return {
 		draw_all: (
-			label_map, annotations, canvas_position, points, label_index) => {
+			label_map, annotations, canvas_position, points,
+			label_index, annotations_index, edge) => {
 
 			draw_image();
 
-			draw_boxes(label_map, annotations, canvas_position);
+			draw_boxes(label_map, annotations, annotations_index, edge);
 
 			const colour = label_colour(label_map, label_index);
 			draw_lines(canvas_position, colour);
@@ -231,13 +284,16 @@ const Drawer = (
 		reset_scale,
 		transform_window_canvas,
 		transform_canvas_image,
-		translate: canvas_position_delta => {
-			clear_canvas();
-
-			context_image.translate(
-				canvas_position_delta.x, canvas_position_delta.y);
-			context_boxes.translate(
-				canvas_position_delta.x, canvas_position_delta.y);
+		translate,
+		translate_to_box: box => {
+			const canvas_box = transform_box_image_canvas(box)
+			const canvas_mid = transform_window_canvas(
+				{x: window_width / 2, y: window_height / 2});
+			const canvas_delta = {
+				x: canvas_mid.x - (canvas_box.x + canvas_box.width / 2),
+				y: canvas_mid.y - (canvas_box.y + canvas_box.height / 2),
+			};
+			translate(canvas_delta);
 		},
 		zoom: (canvas_position, factor) => {
 			clear_canvas();
@@ -262,7 +318,7 @@ const point_in_box = (x, y, box) =>
 
 const box_area = box => box.width * box.height;
 
-const find_best_annotation_index = (
+const find_best_annotations_index = (
 	annotations, position) => {
 	// Score inverse proportional to box area
 	const scores = annotations.map(annotation =>
@@ -272,13 +328,57 @@ const find_best_annotation_index = (
 	return scores.findIndex(score => score && score === max_score);
 };
 
-const shift_annotations = (annotations, x, y) => {
-	return annotations.map(annotation => ({
-		...annotation,
-		x: annotation.x + x,
-		y: annotation.y + y,
-	}));
-};
+const shift_left = (annotations, annotations_index, edge) => {
+	const box = annotations[annotations_index];
+	if (edge == 3) {
+		box.x -= 1;
+		box.width += 1;
+	} else if (edge == 1) {
+		box.width -= 1;
+	} else {
+		return false;
+	}
+	return true;
+}
+
+const shift_down = (annotations, annotations_index, edge) => {
+	const box = annotations[annotations_index];
+	if (edge == 2) {
+		box.height += 1;
+	} else if (edge == 0) {
+		box.y += 1;
+		box.height -= 1;
+	} else {
+		return false;
+	}
+	return true;
+}
+
+const shift_up = (annotations, annotations_index, edge) => {
+	const box = annotations[annotations_index];
+	if (edge == 0) {
+		box.y -= 1;
+		box.height += 1;
+	} else if (edge == 2) {
+		box.height -= 1;
+	} else {
+		return false;
+	}
+	return true;
+}
+
+const shift_right = (annotations, annotations_index, edge) => {
+	const box = annotations[annotations_index];
+	if (edge == 1) {
+		box.width += 1;
+	} else if (edge == 3) {
+		box.x += 1;
+		box.width -= 1;
+	} else {
+		return false;
+	}
+	return true;
+}
 
 document.addEventListener(
 	"DOMContentLoaded",
@@ -300,6 +400,8 @@ document.addEventListener(
 			window.innerWidth, window.innerHeight);
 
 		let annotations = [];
+		let annotations_index = -1;
+
 		let label_map = {
 		  0: "#66ff66",
 		  1: "#34d1b7",
@@ -317,13 +419,14 @@ document.addEventListener(
 
 		let label_index = 0;
 
-		let clicking = false;
 		const clicker = Clicker();
 
 		let position = {x: 0, y: 0};
 
 		let moving = false;
 		let move = {x: 0, y: 0};
+
+		let edge = 0;
 
 		const set_image = event => {
 			image = new Image();
@@ -332,7 +435,8 @@ document.addEventListener(
 				position = mouse_position(event);
 				drawer.draw_all(
 					label_map, annotations,
-					position, clicker.get_points(), label_index);
+					position, clicker.get_points(), label_index,
+					annotations_index, edge);
 			};
 			const file = event.target.files[0];
 			image.name = file.name;
@@ -370,37 +474,46 @@ document.addEventListener(
 			return drawer.transform_window_canvas(position)
 		};
 
+		// Zoom
 		canvas_boxes.addEventListener(
 			'wheel',
 			event => {
 				position = mouse_position(event);
 				if (event.deltaY < 0) {
-					drawer.zoom(position, 1.1);
+					drawer.zoom(position, 1.2);
 				} else {
-					drawer.zoom(position, 1 / 1.1);
+					drawer.zoom(position, 1 / 1.2);
 				}
 				drawer.draw_all(
 					label_map, annotations,
-					position, clicker.get_points(), label_index);
-			});
+					position, clicker.get_points(), label_index,
+					annotations_index, edge);
+			},
+			{passive: true});
 
 		canvas_boxes.addEventListener(
 			'mousedown',
 			event => {
+				// Middle click
 				if (event.which === 2 || event.button === 4) {
-					position = mouse_position(event);
-					const index = find_best_annotation_index(
-						annotations, drawer.transform_canvas_image(position));
-					// Delete box
-					if (index >= 0) {
-						annotations.splice(index, 1);
-						drawer.draw_all(
-							label_map, annotations,
-							position, clicker.get_points(), label_index);
-					} else if (clicker.get_active()) {
-						// Remove last click
+					// Remove last click
+					if (clicker.get_active()) {
 						clicker.decrease_count();
+					// Delete box
+					} else {
+						position = mouse_position(event);
+						const index = find_best_annotations_index(
+							annotations,
+							drawer.transform_canvas_image(position));
+						if (index >= 0) {
+							annotations.splice(index, 1);
+							drawer.draw_all(
+								label_map, annotations,
+								position, clicker.get_points(), label_index,
+								annotations_index, edge);
+						}
 					}
+				// Left button drag
 				} else if (event.which === 1  || event.button === 0) {
 					if (!clicker.get_active()) {
 						moving = true;
@@ -413,6 +526,7 @@ document.addEventListener(
 		canvas_boxes.addEventListener(
 			'mouseup',
 			event => {
+				// Left button drag
 				if (event.which === 1  || event.button === 0) {
 					if (moving) {
 						moving = false;
@@ -424,57 +538,102 @@ document.addEventListener(
 			'mousemove',
 			event => {
 				position = mouse_position(event);
-				if (moving) {
-					const delta = {
-						x: position.x - move.x,
-						y: position.y - move.y,
-					};
-					drawer.translate(delta);
-					position = mouse_position(event);
-					move = position;
+				// Left button drag
+				if (event.which === 1  || event.button === 0) {
+					if (moving) {
+						const delta = {
+							x: position.x - move.x,
+							y: position.y - move.y,
+						};
+						drawer.translate(delta);
+						position = mouse_position(event);
+						move = position;
+					}
 				}
+				// Also need to draw lines if not dragging
 				drawer.draw_all(
 					label_map, annotations,
-					position, clicker.get_points(), label_index);
+					position, clicker.get_points(), label_index,
+					annotations_index, edge);
 			});
 
 		canvas_boxes.addEventListener(
 			'click',
 			event => {
+				let redraw = false;
+				// Add/remove point
 				if (clicker.get_active()) {
-					position = mouse_position(event);
-					const point = drawer.transform_canvas_image(position);
-					const image_box = {
-						x: 0, y: 0,
-						width: image.width, height: image.height
-					};
-					if (point_in_box(point.x, point.y, image_box)) {
-						clicker.click(point);
-						if (clicker.is_complete()) {
-							const label =
-								label_map ?
-								Object.keys(label_map)[label_index] :
-								label_index;
-							annotations.push(clicker.box(label))
-							clicker.deactivate();
+					// Left button add point
+					if (event.which === 1  || event.button === 0) {
+						position = mouse_position(event);
+						const point = drawer.transform_canvas_image(position);
+						const image_box = {
+							x: 0, y: 0,
+							width: image.width, height: image.height
+						};
+						if (point_in_box(point.x, point.y, image_box)) {
+							clicker.click(point);
+							if (clicker.is_complete()) {
+								const label =
+									Object.keys(label_map)[label_index]
+								annotations.push(clicker.box(label))
+								clicker.deactivate();
+							}
+							redraw = true;
 						}
-						drawer.draw_all(
-							label_map, annotations,
-							position, clicker.get_points(), label_index);
+					// Middle button remove point
+					} else if (event.which === 2 || event.button === 4) {
+						clicker.decrease_count();
+						redraw = true;
 					}
+				// Middle button delete box
+				} else if (event.which === 2 || event.button === 4) {
+					position = mouse_position(event);
+					const index = find_best_annotations_index(
+						annotations,
+						drawer.transform_canvas_image(position));
+					if (index >= 0) {
+						annotations.splice(index, 1);
+						redraw = true;
+					}
+				// Left button select box for edit mode
+				} else if (event.which === 1  || event.button === 0) {
+						position = mouse_position(event);
+					position = mouse_position(event);
+					const index = find_best_annotations_index(
+						annotations, drawer.transform_canvas_image(position));
+					if (index >= 0) {
+						edge = -1;
+						annotations_index = index;
+					} else {
+						edge = -1;
+						annotations_index = -1;
+					}
+					redraw = true;
+				}
+
+				if (redraw) {
+					drawer.draw_all(
+						label_map, annotations,
+						position, clicker.get_points(), label_index,
+						annotations_index, edge);
 				}
 			});
 
+		// Reset scale
 		canvas_boxes.addEventListener(
 			'dblclick',
 			event => {
+				annotations_index = -1 ;
 				position = mouse_position(event);
 				drawer.reset_scale(window.innerWidth, window.innerHeight);
 				drawer.draw_all(
 					label_map, annotations,
-					position, clicker.get_points(), label_index);
+					position, clicker.get_points(), label_index,
+					annotations_index, edge);
 			});
 
+		// Save
 		save.addEventListener(
 			'click',
 			() => {
@@ -491,21 +650,98 @@ document.addEventListener(
 			'keydown',
 			event => {
 
+				let redraw = false;
+
 				const index_keys = '1234567890-=!@#$%^&*()_+'.split('')
 				if (index_keys.includes(event.key)) {
 					label_index =
 						index_keys.findIndex(key => key === event.key);
-					drawer.draw_all(
-						label_map, annotations,
-						position, clicker.get_points(), label_index);
+					if (annotations_index >= 0) {
+						annotations[annotations_index].label =
+							Object.keys(label_map)[label_index];
+					}
+					redraw = true;
 				} else {
 					switch (event.key) {
+						// Normal mode
 						case 'Escape':
+							edge = -1;
+							annotations_index = -1;
 							clicker.deactivate();
+							redraw = true;
 							break;
+
+						// Insert mode
 						case 'r':
+							edge = -1;
+							annotations_index = -1;
 							clicker.activate();
+							redraw = true;
 							break;
+
+						case 's':
+							if (annotations_index >= 0) {
+								if (!shift_left(
+									annotations, annotations_index, edge)) {
+
+									edge = 3;
+								}
+								redraw = true;
+							}
+							break;
+						case 'f':
+							if (annotations_index >= 0) {
+								if (!shift_down(
+									annotations, annotations_index, edge)) {
+
+									edge = 2;
+								}
+								redraw = true;
+							}
+							break;
+						case 'd':
+							if (annotations_index >= 0) {
+								if (!shift_up(
+									annotations, annotations_index, edge)) {
+
+									edge = 0;
+								}
+								redraw = true;
+							}
+							break;
+						case 'g':
+							if (annotations_index >= 0) {
+								if (!shift_right(
+									annotations, annotations_index, edge)) {
+
+									edge = 1;
+								}
+								redraw = true;
+							}
+							break;
+
+						case 'F':
+							if (annotations) {
+								edge = -1;
+								annotations_index = Math.min(
+									annotations_index + 1,
+									annotations.length - 1);
+								drawer.translate_to_box(
+									annotations[annotations_index])
+								redraw = true;
+							}
+							break;
+						case 'D':
+							if (annotations) {
+								edge = -1;
+								annotations_index = Math.max(
+									0, annotations_index - 1);
+								drawer.translate_to_box(
+									annotations[annotations_index])
+								redraw = true;
+							}
+							break;
+
 						case 'p':
 							file_label_map.click();
 							break;
@@ -519,6 +755,13 @@ document.addEventListener(
 							save.click();
 							break;
 					}
+				}
+
+				if (redraw) {
+					drawer.draw_all(
+						label_map, annotations,
+						position, clicker.get_points(), label_index,
+						annotations_index, edge);
 				}
 			});
 	});
