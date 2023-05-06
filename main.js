@@ -128,13 +128,13 @@ const Drawer = (
 	const draw_box_edge = (box, edge) => {
 		context_boxes.strokeStyle = box_edge_colour;
 		context_boxes.beginPath();
-		if (edge == 0) {
+		if (edge === 0) {
 			draw_box_top(box);
-		} else if (edge == 1) {
+		} else if (edge === 1) {
 			draw_box_right(box);
-		} else if (edge == 2) {
+		} else if (edge === 2) {
 			draw_box_bottom(box);
-		} else if (edge == 3) {
+		} else if (edge === 3) {
 			draw_box_left(box);
 		}
 		context_boxes.stroke();
@@ -166,12 +166,16 @@ const Drawer = (
 			canvas_end.x - canvas_origin.x, canvas_end.y - canvas_origin.y);
 	};
 
-	const draw_boxes = (label_map, annotations, annotations_index, edge) => {
-		annotations.forEach((annotation, index) => draw_box(
-			label_map,
-			annotation,
-			index == annotations_index,
-			index == annotations_index ? edge : -1));
+	const draw_boxes = (
+		label_map, annotations, annotations_index, edge, annotations_hide) => {
+
+		if (!annotations_hide) {
+			annotations.forEach((annotation, index) => draw_box(
+				label_map,
+				annotation,
+				index === annotations_index,
+				index === annotations_index ? edge : -1));
+		}
 
 		if (annotations_index >= 0) {
 			draw_box(label_map, annotations[annotations_index], true, edge);
@@ -273,9 +277,9 @@ const Drawer = (
 			draw_image();
 
 			clear_boxes();
-			if (!annotations_hide) {
-				draw_boxes(label_map, annotations, annotations_index, edge);
-			}
+			draw_boxes(
+				label_map, annotations, annotations_index,
+				edge, annotations_hide);
 
 			const colour = label_colour(label_map, label_index);
 			draw_lines(canvas_position, colour);
@@ -323,22 +327,19 @@ const point_in_box = (x, y, box) =>
 
 const box_area = box => box.width * box.height;
 
-const find_best_annotations_index = (
-	annotations, position) => {
-	// Score inverse proportional to box area
-	const scores = annotations.map(annotation =>
-		point_in_box(position.x, position.y, annotation) *
-		(1 / box_area(annotation)));
-	const max_score = Math.max(...scores);
-	return scores.findIndex(score => score && score === max_score);
+const find_best_annotations_indices = (annotations, position) => {
+	return annotations
+		.filter(annotation => point_in_box(position.x, position.y, annotation))
+		.sort((x, y) => box_area(x) - box_area(y))
+		.map(box => annotations.findIndex(annotation => annotation === box));
 };
 
 const shift_left = (annotations, annotations_index, edge) => {
 	const box = annotations[annotations_index];
-	if (edge == 3) {
+	if (edge === 3) {
 		box.x -= 1;
 		box.width += 1;
-	} else if (edge == 1) {
+	} else if (edge === 1) {
 		box.width -= 1;
 	} else {
 		return false;
@@ -348,9 +349,9 @@ const shift_left = (annotations, annotations_index, edge) => {
 
 const shift_down = (annotations, annotations_index, edge) => {
 	const box = annotations[annotations_index];
-	if (edge == 2) {
+	if (edge === 2) {
 		box.height += 1;
-	} else if (edge == 0) {
+	} else if (edge === 0) {
 		box.y += 1;
 		box.height -= 1;
 	} else {
@@ -361,10 +362,10 @@ const shift_down = (annotations, annotations_index, edge) => {
 
 const shift_up = (annotations, annotations_index, edge) => {
 	const box = annotations[annotations_index];
-	if (edge == 0) {
+	if (edge === 0) {
 		box.y -= 1;
 		box.height += 1;
-	} else if (edge == 2) {
+	} else if (edge === 2) {
 		box.height -= 1;
 	} else {
 		return false;
@@ -374,9 +375,9 @@ const shift_up = (annotations, annotations_index, edge) => {
 
 const shift_right = (annotations, annotations_index, edge) => {
 	const box = annotations[annotations_index];
-	if (edge == 1) {
+	if (edge === 1) {
 		box.width += 1;
-	} else if (edge == 3) {
+	} else if (edge === 3) {
 		box.x += 1;
 		box.width -= 1;
 	} else {
@@ -407,6 +408,9 @@ document.addEventListener(
 		let annotations = [];
 		let annotations_index = -1;
 		let annotations_hide = false;
+
+		let last_overlap_indices = [];
+		let overlap_indicies_index = -1;
 
 		let label_map = {
 		  0: "#66ff66",
@@ -508,16 +512,42 @@ document.addEventListener(
 					// Delete box
 					} else {
 						position = mouse_position(event);
-						const index = find_best_annotations_index(
+						const overlap_indices = find_best_annotations_indices(
 							annotations,
 							drawer.transform_canvas_image(position));
-						if (index >= 0) {
-							annotations.splice(index, 1);
-							drawer.draw_all(
-								label_map, annotations,
-								position, clicker.get_points(), label_index,
-								annotations_index, edge, annotations_hide);
+						if (
+							JSON.stringify(overlap_indices) ==
+							JSON.stringify(last_overlap_indices)) {
+							annotations.splice(
+								overlap_indices[overlap_indicies_index], 1);
+
+							overlap_indicies_index +=
+								overlap_indices.length - 1;
+							overlap_indicies_index =
+								(overlap_indicies_index - 1) %
+								(overlap_indices.length - 1);
+
+							last_overlap_indices =
+								find_best_annotations_indices(
+									annotations,
+									drawer.transform_canvas_image(position));
+							if (last_overlap_indices.length) {
+								edge = -1;
+								annotations_index =
+									last_overlap_indices[
+										overlap_indicies_index];
+							} else {
+								edge = -1;
+								annotations_index = -1;
+								overlap_indicies_index = -1;
+							}
+						} else {
+							annotations.splice(overlap_indices[0], 1);
 						}
+						drawer.draw_all(
+							label_map, annotations,
+							position, clicker.get_points(), label_index,
+							annotations_index, edge, annotations_hide);
 					}
 				// Left button drag
 				} else if (event.which === 1  || event.button === 0) {
@@ -587,34 +617,38 @@ document.addEventListener(
 							}
 							redraw = true;
 						}
-					// Middle button remove point
-					} else if (event.which === 2 || event.button === 4) {
-						clicker.decrease_count();
-						redraw = true;
-					}
-				// Middle button delete box
-				} else if (event.which === 2 || event.button === 4) {
-					position = mouse_position(event);
-					const index = find_best_annotations_index(
-						annotations,
-						drawer.transform_canvas_image(position));
-					if (index >= 0) {
-						annotations.splice(index, 1);
-						redraw = true;
 					}
 				// Left button select box for edit mode
 				} else if (event.which === 1  || event.button === 0) {
 						position = mouse_position(event);
 					position = mouse_position(event);
-					const index = find_best_annotations_index(
+					const overlap_indices = find_best_annotations_indices(
 						annotations, drawer.transform_canvas_image(position));
-					if (index >= 0) {
+					if (
+						JSON.stringify(overlap_indices) !==
+						JSON.stringify(last_overlap_indices)) {
+						overlap_indicies_index = -1;
+					}
+					if (overlap_indices.length) {
 						edge = -1;
-						annotations_index = index;
+						if (!event.shiftKey) {
+							overlap_indicies_index =
+								(overlap_indicies_index + 1) %
+								overlap_indices.length;
+						} else {
+							overlap_indicies_index += overlap_indices.length;
+							overlap_indicies_index =
+								(overlap_indicies_index - 1) %
+								overlap_indices.length;
+						}
+						annotations_index =
+							overlap_indices[overlap_indicies_index];
 					} else {
 						edge = -1;
 						annotations_index = -1;
+						overlap_indicies_index = -1;
 					}
+					last_overlap_indices = overlap_indices;
 					redraw = true;
 				}
 
@@ -630,13 +664,17 @@ document.addEventListener(
 		canvas_boxes.addEventListener(
 			'dblclick',
 			event => {
-				annotations_index = -1 ;
 				position = mouse_position(event);
-				drawer.reset_scale(window.innerWidth, window.innerHeight);
-				drawer.draw_all(
-					label_map, annotations,
-					position, clicker.get_points(), label_index,
-					annotations_index, edge, annotations_hide);
+				const overlap_indices = find_best_annotations_indices(
+					annotations, drawer.transform_canvas_image(position));
+				if (!overlap_indices.length) {
+					annotations_index = -1 ;
+					drawer.reset_scale(window.innerWidth, window.innerHeight);
+					drawer.draw_all(
+						label_map, annotations,
+						position, clicker.get_points(), label_index,
+						annotations_index, edge, annotations_hide);
+				}
 			});
 
 		// Save
