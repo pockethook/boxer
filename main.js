@@ -258,6 +258,8 @@ const Drawer = (
 	update_canvas_dimensions(window_width, window_height);
 
 	image.src = canvas_image.toDataURL('image/png');
+	image.width = window_width;
+	image.height = window_height;
 
 	let offset_x = 0;
 	let offset_y = 0;
