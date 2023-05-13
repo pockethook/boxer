@@ -5,12 +5,13 @@
 	</head>
 	<body>
 		<script type="text/javascript" src="main.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.5.0/jszip.min.js"></script>
 		<div id="top-panel">
 			<div id="input-panel">
 				<ul>
-					<li><input type="file" id="file-image"/></li>
-					<li><input type="file" id="file-annotations"/></li>
-					<li><input type="file" id="file-label-map"/></li>
+					<li><input type="file" id="file-image" accept=".jpg,.png,.bmp" multiple/></li>
+					<li><input type="file" id="file-annotations" accept=".json,.zip" multiple/></li>
+					<li><input type="file" id="file-label-map" accept=".json"/></li>
 				</ul>
 			</div>
 			<div id="output-panel">

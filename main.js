@@ -408,7 +408,11 @@ document.addEventListener(
 			canvas_image, canvas_boxes, image,
 			window.innerWidth, window.innerHeight);
 
-		let annotations = [];
+		let files = [];
+		let files_index = 0;
+
+
+		let annotations = [[]];
 		let annotations_index = -1;
 		let annotations_hide = false;
 
@@ -441,28 +445,58 @@ document.addEventListener(
 
 		let edge = 0;
 
-		const set_image = event => {
+		const load_image = file => {
 			image = new Image();
 			image.onload = () => {
 				drawer.set_image(image);
 				position = mouse_position(event);
 				drawer.draw_all(
-					label_map, annotations,
+					label_map, annotations[files_index],
 					position, clicker.get_points(), label_index,
 					annotations_index, edge, annotations_hide);
 			};
-			const file = event.target.files[0];
 			image.name = file.name;
 			image.src = window.URL.createObjectURL(file);
+			annotations_index = -1;
+		}
+
+		const load_images = event => {
+			files = Array.from(event.target.files);
+			annotations = files.map(() => []);
+
+			files_index = 0;
+
+			load_image(files[files_index]);
 		};
 
-		const load_annotations = event => {
-			const reader = new FileReader();
-			reader.onload = () => {
-				annotations = JSON.parse(reader.result);
-			};
-			const file = event.target.files[0];
-			reader.readAsText(file, 'utf-8');
+		const load_annotations = async event => {
+			if (event.target.files[0].name.split('.').pop() === 'zip') {
+				const zip = new JSZip();
+				const data = await zip.loadAsync(event.target.files[0]);
+				files.forEach((file, index) => {
+					const json_path = file.name
+						.split('.').slice(0, -1).join('.') + '.json';
+					if (json_path in data.files) {
+						data.file(json_path).async('string').then(
+							json_data => {
+								annotations[index] = JSON.parse(json_data);
+							});
+					}
+				});
+			} else {
+				const base_names = files.map(file => file.name.split('.')[0]);
+				Array.from(event.target.files).forEach(file => {
+					const base_name = file.name.split('.')[0];
+					const index = base_names.indexOf(base_name);
+					if (index >= 0) {
+						const reader = new FileReader();
+						reader.onload = () => {
+							annotations[index] = JSON.parse(reader.result);
+						};
+						reader.readAsText(file, 'utf-8');
+					}
+				})
+			}
 		};
 
 		const load_label_map = event => {
@@ -474,7 +508,7 @@ document.addEventListener(
 			reader.readAsText(file, 'utf-8');
 		};
 
-		input.addEventListener('change', set_image);
+		input.addEventListener('change', load_images);
 		file_annotations.addEventListener('change', load_annotations);
 		file_label_map.addEventListener('change', load_label_map);
 
@@ -498,7 +532,7 @@ document.addEventListener(
 					drawer.zoom(position, 1 / 1.2);
 				}
 				drawer.draw_all(
-					label_map, annotations,
+					label_map, annotations[files_index],
 					position, clicker.get_points(), label_index,
 					annotations_index, edge, annotations_hide);
 			},
@@ -516,12 +550,12 @@ document.addEventListener(
 					} else {
 						position = mouse_position(event);
 						const overlap_indices = find_best_annotations_indices(
-							annotations,
+							annotations[files_index],
 							drawer.transform_canvas_image(position));
 						if (
 							JSON.stringify(overlap_indices) ==
 							JSON.stringify(last_overlap_indices)) {
-							annotations.splice(
+							annotations[files_index].splice(
 								overlap_indices[overlap_indicies_index], 1);
 
 							overlap_indicies_index +=
@@ -532,7 +566,7 @@ document.addEventListener(
 
 							last_overlap_indices =
 								find_best_annotations_indices(
-									annotations,
+									annotations[files_index],
 									drawer.transform_canvas_image(position));
 							if (last_overlap_indices.length) {
 								edge = -1;
@@ -545,10 +579,11 @@ document.addEventListener(
 								overlap_indicies_index = -1;
 							}
 						} else {
-							annotations.splice(overlap_indices[0], 1);
+							annotations[files_index].splice(
+								overlap_indices[0], 1);
 						}
 						drawer.draw_all(
-							label_map, annotations,
+							label_map, annotations[files_index],
 							position, clicker.get_points(), label_index,
 							annotations_index, edge, annotations_hide);
 					}
@@ -591,7 +626,7 @@ document.addEventListener(
 				}
 				// Also need to draw lines if not dragging
 				drawer.draw_all(
-					label_map, annotations,
+					label_map, annotations[files_index],
 					position, clicker.get_points(), label_index,
 					annotations_index, edge, annotations_hide);
 			});
@@ -615,7 +650,8 @@ document.addEventListener(
 							if (clicker.is_complete()) {
 								const label =
 									Object.keys(label_map)[label_index]
-								annotations.push(clicker.box(label))
+								annotations[files_index].push(
+									clicker.box(label))
 								clicker.deactivate();
 							}
 							redraw = true;
@@ -626,7 +662,8 @@ document.addEventListener(
 						position = mouse_position(event);
 					position = mouse_position(event);
 					const overlap_indices = find_best_annotations_indices(
-						annotations, drawer.transform_canvas_image(position));
+						annotations[files_index],
+						drawer.transform_canvas_image(position));
 					if (
 						JSON.stringify(overlap_indices) !==
 						JSON.stringify(last_overlap_indices)) {
@@ -657,7 +694,7 @@ document.addEventListener(
 
 				if (redraw) {
 					drawer.draw_all(
-						label_map, annotations,
+						label_map, annotations[files_index],
 						position, clicker.get_points(), label_index,
 						annotations_index, edge, annotations_hide);
 				}
@@ -669,12 +706,13 @@ document.addEventListener(
 			event => {
 				position = mouse_position(event);
 				const overlap_indices = find_best_annotations_indices(
-					annotations, drawer.transform_canvas_image(position));
+					annotations[files_index],
+					drawer.transform_canvas_image(position));
 				if (!overlap_indices.length) {
 					annotations_index = -1 ;
 					drawer.reset_scale(window.innerWidth, window.innerHeight);
 					drawer.draw_all(
-						label_map, annotations,
+						label_map, annotations[files_index],
 						position, clicker.get_points(), label_index,
 						annotations_index, edge, annotations_hide);
 				}
@@ -683,13 +721,24 @@ document.addEventListener(
 		// Save
 		save.addEventListener(
 			'click',
-			() => {
-				const data = 'data:text/json;charset=utf-8,' +
-					encodeURIComponent(JSON.stringify(annotations));
-				download.setAttribute('href', data);
-				download.setAttribute(
-					'download',
-					image.name.split('.').slice(0, -1).join('.') + '.json');
+			async () => {
+				const zip = new JSZip();
+
+				files.forEach((file, index) => {
+					if (annotations[index]) {
+						const json_data = JSON.stringify(annotations[index]);
+						const json_path = file.name
+							.split('.').slice(0, -1).join('.') + '.json';
+						zip.file(json_path, json_data);
+					}
+				});
+
+				const zip_blob = await zip.generateAsync({type: 'blob'});
+				const zip_url = URL.createObjectURL(zip_blob);
+
+				const date = new Date();
+				download.setAttribute('href', zip_url);
+				download.setAttribute('download', date.toISOString() + '.zip');
 				download.click();
 			});
 
@@ -704,7 +753,7 @@ document.addEventListener(
 					label_index =
 						index_keys.findIndex(key => key === event.key);
 					if (annotations_index >= 0) {
-						annotations[annotations_index].label =
+						annotations[files_index][annotations_index].label =
 							Object.keys(label_map)[label_index];
 					}
 					redraw = true;
@@ -735,7 +784,8 @@ document.addEventListener(
 						case 's':
 							if (annotations_index >= 0) {
 								if (!shift_left(
-									annotations, annotations_index, edge)) {
+									annotations[files_index],
+									annotations_index, edge)) {
 
 									edge = 3;
 								}
@@ -745,7 +795,8 @@ document.addEventListener(
 						case 'f':
 							if (annotations_index >= 0) {
 								if (!shift_down(
-									annotations, annotations_index, edge)) {
+									annotations[files_index],
+									annotations_index, edge)) {
 
 									edge = 2;
 								}
@@ -755,7 +806,8 @@ document.addEventListener(
 						case 'd':
 							if (annotations_index >= 0) {
 								if (!shift_up(
-									annotations, annotations_index, edge)) {
+									annotations[files_index],
+									annotations_index, edge)) {
 
 									edge = 0;
 								}
@@ -765,7 +817,8 @@ document.addEventListener(
 						case 'g':
 							if (annotations_index >= 0) {
 								if (!shift_right(
-									annotations, annotations_index, edge)) {
+									annotations[files_index],
+									annotations_index, edge)) {
 
 									edge = 1;
 								}
@@ -774,13 +827,14 @@ document.addEventListener(
 							break;
 
 						case 'F':
-							if (annotations) {
+							if (annotations[files_index]) {
 								edge = -1;
 								annotations_index = Math.min(
 									annotations_index + 1,
-									annotations.length - 1);
+									annotations[files_index].length - 1);
 								drawer.translate_to_box(
-									annotations[annotations_index])
+									annotations[files_index]
+										[annotations_index])
 								redraw = true;
 							}
 							break;
@@ -790,9 +844,22 @@ document.addEventListener(
 								annotations_index = Math.max(
 									0, annotations_index - 1);
 								drawer.translate_to_box(
-									annotations[annotations_index])
+									annotations[files_index]
+										[annotations_index])
 								redraw = true;
 							}
+							break;
+
+						case 'n':
+							files_index = (files_index + 1) % files.length;
+							load_image(files[files_index]);
+							redraw = true;
+							break;
+						case 'N':
+							files_index = (files_index + files.length - 1) %
+								files.length;
+							load_image(files[files_index]);
+							redraw = true;
 							break;
 
 						case 'p':
@@ -812,7 +879,7 @@ document.addEventListener(
 
 				if (redraw) {
 					drawer.draw_all(
-						label_map, annotations,
+						label_map, annotations[files_index],
 						position, clicker.get_points(), label_index,
 						annotations_index, edge, annotations_hide);
 				}
