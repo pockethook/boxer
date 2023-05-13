@@ -269,6 +269,7 @@ const Drawer = (
 	const box_width = 1;
 	const lines_width = 1;
 	const text_offset = 4;
+	const box_colour = 'red'
 	const box_edge_colour = 'red'
 
 	return {
