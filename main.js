@@ -395,6 +395,7 @@ document.addEventListener(
 		const input = document.getElementById('file-image');
 		const file_annotations = document.getElementById('file-annotations');
 		const file_label_map = document.getElementById('file-label-map');
+		const file_gcs = document.getElementById('file-gcs');
 
 		const canvas_image = document.getElementById('canvas-image');
 		const canvas_boxes = document.getElementById('canvas-boxes');
@@ -441,7 +442,13 @@ document.addEventListener(
 		let position = {x: 0, y: 0};
 
 		let moving = false;
+		let moved = false;
 		let move = {x: 0, y: 0};
+
+		let shifting = false;
+		let shifted = false;
+
+		let cancel_click = true;
 
 		let edge = 0;
 
@@ -508,9 +515,41 @@ document.addEventListener(
 			reader.readAsText(file, 'utf-8');
 		};
 
+		const load_gcs = async event => {
+			if (event.target.files[0].name.split('.').pop() === 'json') {
+				const reader = new FileReader();
+				reader.onload = async () => {
+					const data = JSON.parse(reader.result);
+					console.log(data);
+					const token = data['token'];
+					const bucket = data['bucket'];
+					const base_url =
+						'https://storage.googleapis.com/storage/v1/b/' +
+						bucket + '/o/';
+					const images = data['images'];
+					files = []
+					for (const image of images) {
+						const response = await fetch(
+							base_url + image + '?alt=media',
+							{headers: {'Authorization': 'Bearer ' + token}});
+						if (response.ok) {
+							const response_data = await response.blob();
+							console.log(response_data);
+							files.push(response_data);
+						}
+					}
+					files_index = 0;
+
+					load_image(files[files_index]);
+				};
+				reader.readAsText(event.target.files[0]);
+			}
+		};
+
 		input.addEventListener('change', load_images);
 		file_annotations.addEventListener('change', load_annotations);
 		file_label_map.addEventListener('change', load_label_map);
+		file_gcs.addEventListener('change', load_gcs);
 
 		const mouse_position = event => {
 			const rect = canvas_boxes.getBoundingClientRect();
@@ -526,10 +565,30 @@ document.addEventListener(
 			'wheel',
 			event => {
 				position = mouse_position(event);
-				if (event.deltaY < 0) {
-					drawer.zoom(position, 1.2);
+				const point = drawer.transform_canvas_image(position);
+				if ((annotations_index !== -1) && point_in_box(point.x, point.y, annotations[files_index][annotations_index])) {
+					const box = annotations[files_index][annotations_index];
+					if (point_in_box(point.x, point.y, box)) {
+						if (event.deltaY < 0) {
+							const box = annotations[files_index][annotations_index];
+							box['x'] += 0.5;
+							box['y'] += 0.5;
+							box['width'] -= 1;
+							box['height'] -= 1;
+						} else {
+							const box = annotations[files_index][annotations_index];
+							box['x'] -= 0.5;
+							box['y'] -= 0.5;
+							box['width'] += 1;
+							box['height'] += 1;
+						}
+					}
 				} else {
-					drawer.zoom(position, 1 / 1.2);
+					if (event.deltaY < 0) {
+						drawer.zoom(position, 1.2);
+					} else {
+						drawer.zoom(position, 1 / 1.2);
+					}
 				}
 				drawer.draw_all(
 					label_map, annotations[files_index],
@@ -590,9 +649,17 @@ document.addEventListener(
 				// Left button drag
 				} else if (event.which === 1  || event.button === 0) {
 					if (!clicker.get_active()) {
-						moving = true;
 						position = mouse_position(event);
-						move = position;
+						const point = drawer.transform_canvas_image(position);
+						if ((annotations_index !== -1) && point_in_box(point.x, point.y, annotations[files_index][annotations_index])) {
+							shifting = true;
+							position = mouse_position(event);
+							move = position;
+						} else {
+							moving = true;
+							position = mouse_position(event);
+							move = position;
+						}
 					}
 				}
 			});
@@ -604,6 +671,16 @@ document.addEventListener(
 				if (event.which === 1  || event.button === 0) {
 					if (moving) {
 						moving = false;
+						if (moved) {
+							cancel_click = true;
+						}
+						moved = false;
+					} else if (shifting) {
+						shifting = false;
+						if (shifted) {
+							cancel_click = true;
+						}
+						shifted = false;
 					}
 				}
 			});
@@ -622,6 +699,23 @@ document.addEventListener(
 						drawer.translate(delta);
 						position = mouse_position(event);
 						move = position;
+						moved = true;
+					} else if (shifting) {
+						const point = drawer.transform_canvas_image(position);
+						const box = annotations[files_index][annotations_index];
+						if (point_in_box(point.x, point.y, box)) {
+							const before = drawer.transform_canvas_image(move);
+							const after = drawer.transform_canvas_image(position);
+							const delta = {
+								x: after.x - before.x,
+								y: after.y - before.y,
+							};
+							console.log(delta);
+							box['x'] += delta.x;
+							box['y'] += delta.y;
+							move = position;
+							shifted = true;
+						}
 					}
 				}
 				// Also need to draw lines if not dragging
@@ -659,37 +753,40 @@ document.addEventListener(
 					}
 				// Left button select box for edit mode
 				} else if (event.which === 1  || event.button === 0) {
-						position = mouse_position(event);
-					position = mouse_position(event);
-					const overlap_indices = find_best_annotations_indices(
-						annotations[files_index],
-						drawer.transform_canvas_image(position));
-					if (
-						JSON.stringify(overlap_indices) !==
-						JSON.stringify(last_overlap_indices)) {
-						overlap_indicies_index = -1;
-					}
-					if (overlap_indices.length) {
-						edge = -1;
-						if (!event.shiftKey) {
-							overlap_indicies_index =
-								(overlap_indicies_index + 1) %
-								overlap_indices.length;
-						} else {
-							overlap_indicies_index += overlap_indices.length;
-							overlap_indicies_index =
-								(overlap_indicies_index - 1) %
-								overlap_indices.length;
-						}
-						annotations_index =
-							overlap_indices[overlap_indicies_index];
+					if (cancel_click) {
+						cancel_click = false;
 					} else {
-						edge = -1;
-						annotations_index = -1;
-						overlap_indicies_index = -1;
+						position = mouse_position(event);
+						const overlap_indices = find_best_annotations_indices(
+							annotations[files_index],
+							drawer.transform_canvas_image(position));
+						if (
+							JSON.stringify(overlap_indices) !==
+							JSON.stringify(last_overlap_indices)) {
+							overlap_indicies_index = -1;
+						}
+						if (overlap_indices.length) {
+							edge = -1;
+							if (!event.shiftKey) {
+								overlap_indicies_index =
+									(overlap_indicies_index + 1) %
+									overlap_indices.length;
+							} else {
+								overlap_indicies_index += overlap_indices.length;
+								overlap_indicies_index =
+									(overlap_indicies_index - 1) %
+									overlap_indices.length;
+							}
+							annotations_index =
+								overlap_indices[overlap_indicies_index];
+						} else {
+							edge = -1;
+							annotations_index = -1;
+							overlap_indicies_index = -1;
+						}
+						last_overlap_indices = overlap_indices;
+						redraw = true;
 					}
-					last_overlap_indices = overlap_indices;
-					redraw = true;
 				}
 
 				if (redraw) {
@@ -779,6 +876,23 @@ document.addEventListener(
 						case 'a':
 							annotations_hide = !annotations_hide;
 							redraw = true;
+							break;
+
+						// Make square
+						case 'x':
+							if (annotations_index >= 0) {
+								const box = annotations[files_index]
+									[annotations_index];
+								const cx = box['x'] + box['width'] / 2;
+								const cy = box['y'] + box['height'] / 2;
+								const edge = Math.min(
+									box['width'], box['height']);
+								box['width'] = edge;
+								box['height'] = edge;
+								box['x'] = cx - edge / 2;
+								box['y'] = cy - edge / 2;
+								redraw = true;
+							}
 							break;
 
 						case 's':
@@ -873,6 +987,9 @@ document.addEventListener(
 							break;
 						case 'u':
 							save.click();
+							break;
+						case 'y':
+							file_gcs.click();
 							break;
 					}
 				}
