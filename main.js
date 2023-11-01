@@ -520,7 +520,6 @@ document.addEventListener(
 				const reader = new FileReader();
 				reader.onload = async () => {
 					const data = JSON.parse(reader.result);
-					console.log(data);
 					const token = data['token'];
 					const bucket = data['bucket'];
 					const base_url =
@@ -534,7 +533,6 @@ document.addEventListener(
 							{headers: {'Authorization': 'Bearer ' + token}});
 						if (response.ok) {
 							const response_data = await response.blob();
-							console.log(response_data);
 							files.push(response_data);
 						}
 					}
@@ -724,7 +722,6 @@ document.addEventListener(
 								x: after.x - before.x,
 								y: after.y - before.y,
 							};
-							console.log(delta);
 							box['x'] += delta.x;
 							box['y'] += delta.y;
 							move = position;
