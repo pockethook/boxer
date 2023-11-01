@@ -538,6 +538,8 @@ document.addEventListener(
 							files.push(response_data);
 						}
 					}
+					annotations = files.map(() => []);
+
 					files_index = 0;
 
 					load_image(files[files_index]);
