@@ -568,17 +568,23 @@ document.addEventListener(
 			event => {
 				position = mouse_position(event);
 				const point = drawer.transform_canvas_image(position);
-				if ((annotations_index !== -1) && point_in_box(point.x, point.y, annotations[files_index][annotations_index])) {
+				if (
+					(annotations_index !== -1) &&
+					point_in_box(
+						point.x, point.y,
+						annotations[files_index][annotations_index])) {
 					const box = annotations[files_index][annotations_index];
 					if (point_in_box(point.x, point.y, box)) {
 						if (event.deltaY < 0) {
-							const box = annotations[files_index][annotations_index];
+							const box =
+								annotations[files_index][annotations_index];
 							box['x'] += 0.5;
 							box['y'] += 0.5;
 							box['width'] -= 1;
 							box['height'] -= 1;
 						} else {
-							const box = annotations[files_index][annotations_index];
+							const box =
+								annotations[files_index][annotations_index];
 							box['x'] -= 0.5;
 							box['y'] -= 0.5;
 							box['width'] += 1;
@@ -653,7 +659,11 @@ document.addEventListener(
 					if (!clicker.get_active()) {
 						position = mouse_position(event);
 						const point = drawer.transform_canvas_image(position);
-						if ((annotations_index !== -1) && point_in_box(point.x, point.y, annotations[files_index][annotations_index])) {
+						if (
+							(annotations_index !== -1) &&
+							point_in_box(
+								point.x, point.y,
+								annotations[files_index][annotations_index])) {
 							shifting = true;
 							position = mouse_position(event);
 							move = position;
@@ -704,10 +714,12 @@ document.addEventListener(
 						moved = true;
 					} else if (shifting) {
 						const point = drawer.transform_canvas_image(position);
-						const box = annotations[files_index][annotations_index];
+						const box =
+							annotations[files_index][annotations_index];
 						if (point_in_box(point.x, point.y, box)) {
 							const before = drawer.transform_canvas_image(move);
-							const after = drawer.transform_canvas_image(position);
+							const after =
+								drawer.transform_canvas_image(position);
 							const delta = {
 								x: after.x - before.x,
 								y: after.y - before.y,
@@ -774,7 +786,8 @@ document.addEventListener(
 									(overlap_indicies_index + 1) %
 									overlap_indices.length;
 							} else {
-								overlap_indicies_index += overlap_indices.length;
+								overlap_indicies_index +=
+									overlap_indices.length;
 								overlap_indicies_index =
 									(overlap_indicies_index - 1) %
 									overlap_indices.length;
