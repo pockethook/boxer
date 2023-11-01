@@ -860,6 +860,7 @@ document.addEventListener(
 
 				let redraw = false;
 
+				// Change label
 				const index_keys = '1234567890-=!@#$%^&*()_+'.split('')
 				if (index_keys.includes(event.key)) {
 					label_index =
@@ -910,6 +911,7 @@ document.addEventListener(
 							}
 							break;
 
+						// Grow left
 						case 's':
 							if (annotations_index >= 0) {
 								if (!shift_left(
@@ -921,6 +923,9 @@ document.addEventListener(
 								redraw = true;
 							}
 							break;
+
+						// Grow right
+						// Next file
 						case 'f':
 							if (annotations_index >= 0) {
 								if (!shift_down(
@@ -936,6 +941,9 @@ document.addEventListener(
 								redraw = true;
 							}
 							break;
+
+						// Grow up
+						// Previous file
 						case 'd':
 							if (annotations_index >= 0) {
 								if (!shift_up(
@@ -953,6 +961,8 @@ document.addEventListener(
 								redraw = true;
 							}
 							break;
+
+						// Grow down
 						case 'g':
 							if (annotations_index >= 0) {
 								if (!shift_right(
@@ -965,6 +975,7 @@ document.addEventListener(
 							}
 							break;
 
+						// Next box
 						case 'F':
 							if (annotations[files_index]) {
 								edge = -1;
@@ -977,6 +988,8 @@ document.addEventListener(
 								redraw = true;
 							}
 							break;
+
+						// Previous box
 						case 'D':
 							if (annotations) {
 								edge = -1;
@@ -989,18 +1002,27 @@ document.addEventListener(
 							}
 							break;
 
+						// Open label map
 						case 'p':
 							file_label_map.click();
 							break;
+
+						// Open images
 						case 'o':
 							input.click();
 							break;
+
+						// Open annotations
 						case 'i':
 							file_annotations.click();
 							break;
+
+						// Save annotations
 						case 'u':
 							save.click();
 							break;
+
+						// Open Google Cloud Storage manifest
 						case 'y':
 							file_gcs.click();
 							break;
