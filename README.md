@@ -16,8 +16,8 @@ Boxer is an image annotator.
 * Mouse wheel: Zoom
 * Left button drag: Translate image
 * Left double click box: Reset zoom
-* n: Next file
-* N: Previous file
+* f: Next file
+* d: Previous file
 * F: Next box
 * D: Previous box
 

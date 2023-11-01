@@ -917,6 +917,10 @@ document.addEventListener(
 									edge = 2;
 								}
 								redraw = true;
+							} else {
+								files_index = (files_index + 1) % files.length;
+								load_image(files[files_index]);
+								redraw = true;
 							}
 							break;
 						case 'd':
@@ -927,6 +931,12 @@ document.addEventListener(
 
 									edge = 0;
 								}
+								redraw = true;
+							} else {
+								files_index =
+									(files_index + files.length - 1) %
+										files.length;
+								load_image(files[files_index]);
 								redraw = true;
 							}
 							break;
@@ -964,18 +974,6 @@ document.addEventListener(
 										[annotations_index])
 								redraw = true;
 							}
-							break;
-
-						case 'n':
-							files_index = (files_index + 1) % files.length;
-							load_image(files[files_index]);
-							redraw = true;
-							break;
-						case 'N':
-							files_index = (files_index + files.length - 1) %
-								files.length;
-							load_image(files[files_index]);
-							redraw = true;
 							break;
 
 						case 'p':
