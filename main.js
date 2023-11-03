@@ -1,413 +1,5 @@
 "use strict"
 
-const Annotator = (files, create_object_url) => {
-	files = Array.from(files);
-	const urls = files.map(file => create_object_url(file));
-	const names = files.map(file => file.name);
-	const annotations = files.map(() => []);
-
-	let file_index = files.length > 0 ? 0 : -1;
-	let box_index = -1;
-
-	const next_file = () => {
-		file_index = (file_index + 1) % files.length;
-	};
-	const previous_file = () => {
-		file_index = (file_index + files.length - 1) % files.length;
-	};
-
-	const get_names = () => {
-		return names;
-	};
-	const get_boxes = () => {
-		return annotations[file_index];
-	};
-	const set_boxes = index => {
-		return annotations[index];
-	};
-
-	const get_url = () => {
-		return urls[file_index];
-	};
-	const get_box = () => {
-		const boxes = get_boxes();
-		if (boxes) {
-			return boxes[box_index];
-		}
-	};
-
-	const get_box_index = () => {
-		return box_index;
-	};
-	const set_box_index = index => {
-		box_index = index;
-	};
-	const reset_box_index = () => {
-		box_index = -1;
-	};
-	const is_box_selected = () => {
-		return box_index !== -1;
-	};
-
-	const next_box = () => {
-		const boxes = get_boxes();
-		if (boxes) {
-			box_index = (box_index + 1) % boxes.length;
-		}
-	};
-	const previous_box = () => {
-		const boxes = get_boxes();
-		if (boxes) {
-			box_index = (box_index + boxes.length - 1) % boxes.length;
-		}
-	};
-
-	const push_box = box => {
-		const boxes = get_boxes();
-		if (boxes) {
-			boxes.push(box);
-		}
-	};
-
-	return {
-		next_file,
-		previous_file,
-		get_names,
-		get_boxes,
-		set_boxes,
-		get_url,
-		get_box,
-		get_box_index,
-		set_box_index,
-		reset_box_index,
-		is_box_selected,
-		next_box,
-		previous_box,
-		push_box,
-	};
-};
-
-const Clicker = () => {
-	let count = 0;
-	let active = false;
-	const points = [
-		{x: 0, y: 0},
-		{x: 0, y: 0},
-		{x: 0, y: 0},
-		{x: 0, y: 0},
-	];
-	const reset_count = () => {
-		count = 0;
-	};
-	return {
-		click: position => {
-			points[count] = {
-				x: position.x,
-				y: position.y,
-			};
-			count++;
-		},
-		get_points: () => points.slice(0, count),
-		box: label => {
-			reset_count();
-			const xs = points.map(point => point.x);
-			const ys = points.map(point => point.y);
-			const min_x = Math.min(...xs);
-			const min_y = Math.min(...ys);
-			const max_x = Math.max(...xs);
-			const max_y = Math.max(...ys);
-			return {
-				label,
-				x: min_x,
-				y: min_y,
-				width: max_x - min_x,
-				height: max_y - min_y,
-			};
-		},
-		is_complete: () => count == 4,
-		decrease_count: () => {
-			count = Math.max(0, count - 1);
-		},
-		get_active: () => active,
-		activate: () => {
-			reset_count();
-			active = true;
-		},
-		deactivate: () => {
-			reset_count();
-			active = false;
-		},
-	};
-};
-
-const Drawer = (
-	canvas_image, canvas_boxes,
-	new_image, window_width, window_height) => {
-
-	const update_canvas_dimensions = (window_width, window_height) => {
-		canvas_image.width = window_width;
-		canvas_image.height = window_height;
-		canvas_boxes.width = window_width;
-		canvas_boxes.height = window_height;
-	};
-	const update_scaling = () => {
-		const scale_x = canvas_image.width / image.width;
-		const scale_y = canvas_image.height / image.height;
-		scale = Math.min(scale_x, scale_y);
-		offset_x = (canvas_image.width - scale * image.width) / 2;
-		offset_y = (canvas_image.height - scale * image.height) / 2;
-	};
-
-	const draw_image = () => {
-		context_image.drawImage(
-			image, 0, 0, image.width, image.height,
-			offset_x, offset_y, image.width * scale, image.height * scale);
-	};
-
-	const draw_point = (image_point, colour) => {
-		const canvas_point = transform_image_canvas(image_point);
-		context_boxes.strokeStyle = colour;
-		context_boxes.lineWidth = canvas_point;
-		context_boxes.beginPath();
-		context_boxes.moveTo(canvas_point.x - 1, canvas_point.y);
-		context_boxes.lineTo(canvas_point.x + 1, canvas_point.y);
-		context_boxes.stroke();
-		context_boxes.beginPath();
-		context_boxes.moveTo(canvas_point.x, canvas_point.y - 1);
-		context_boxes.lineTo(canvas_point.x, canvas_point.y + 1);
-		context_boxes.stroke();
-	};
-
-	const draw_points = (image_points, colour) => {
-		image_points.forEach(
-			image_point => draw_point(image_point, colour));
-	};
-
-	const draw_text = (box, colour) => {
-		const canvas_box = transform_box_image_canvas(box);
-		context_boxes.fillStyle = colour;
-		context_boxes.fillText(
-			box.label + ' ' +
-				Math.round(box.width) + 'x' + Math.round(box.height),
-			canvas_box.x, canvas_box.y - text_offset);
-	}
-
-	const draw_box_top = box => {
-		context_boxes.moveTo(box.x, box.y);
-		context_boxes.lineTo(box.x + box.width, box.y);
-	}
-
-	const draw_box_right = box => {
-		context_boxes.moveTo(box.x + box.width, box.y);
-		context_boxes.lineTo(box.x + box.width, box.y + box.height);
-	}
-
-	const draw_box_bottom = box => {
-		context_boxes.moveTo(box.x, box.y + box.height);
-		context_boxes.lineTo(box.x + box.width, box.y + box.height);
-	}
-
-	const draw_box_left = box => {
-		context_boxes.moveTo(box.x, box.y);
-		context_boxes.lineTo(box.x, box.y + box.height);
-	}
-
-	const draw_box_edge = (box, edge) => {
-		context_boxes.strokeStyle = box_edge_colour;
-		context_boxes.beginPath();
-		if (edge === 0) {
-			draw_box_top(box);
-		} else if (edge === 1) {
-			draw_box_right(box);
-		} else if (edge === 2) {
-			draw_box_bottom(box);
-		} else if (edge === 3) {
-			draw_box_left(box);
-		}
-		context_boxes.stroke();
-	}
-
-	const draw_box = (label_map, box, highlight, edge) => {
-		const canvas_box = transform_box_image_canvas(box);
-		const label = box.label;
-		const colour =
-			label in label_map ? label_map[label]: box_colour;
-		context_boxes.strokeStyle = colour;
-		context_boxes.lineWidth = box_width;
-		context_boxes.strokeRect(
-			canvas_box.x, canvas_box.y, canvas_box.width, canvas_box.height);
-		if (highlight) {
-			draw_text(box, colour);
-			if (edge != -1) {
-				draw_box_edge(canvas_box, edge);
-			}
-		}
-	};
-
-	const clear_boxes = () => {
-		const canvas_origin = transform_window_canvas({x: 0, y: 0});
-		const canvas_end = transform_window_canvas(
-			{x: canvas_boxes.width, y: canvas_boxes.height});
-		context_boxes.clearRect(
-			canvas_origin.x, canvas_origin.y,
-			canvas_end.x - canvas_origin.x, canvas_end.y - canvas_origin.y);
-	};
-
-	const draw_boxes = (
-		label_map, annotations, annotations_index, edge, annotations_hide) => {
-
-		if (!annotations_hide && annotations) {
-			annotations.forEach((annotation, index) => draw_box(
-				label_map,
-				annotation,
-				index === annotations_index,
-				index === annotations_index ? edge : -1));
-		}
-
-		if (annotations_index >= 0 && annotations) {
-			draw_box(label_map, annotations[annotations_index], true, edge);
-		}
-	};
-
-	const draw_lines = (canvas_position, colour) => {
-		const canvas_origin = transform_window_canvas({x: 0, y: 0});
-		const canvas_end = transform_window_canvas(
-			{x: canvas_boxes.width, y: canvas_boxes.height});
-		context_boxes.strokeStyle = colour;
-		context_boxes.lineWidth = lines_width;
-		context_boxes.beginPath();
-		context_boxes.moveTo(canvas_position.x, canvas_origin.y);
-		context_boxes.lineTo(canvas_position.x, canvas_end.y);
-		context_boxes.stroke();
-		context_boxes.beginPath();
-		context_boxes.moveTo(canvas_origin.x, canvas_position.y);
-		context_boxes.lineTo(canvas_end.x, canvas_position.y);
-		context_boxes.stroke();
-	};
-
-	const reset_scale = (window_width, window_height) => {
-		update_canvas_dimensions(window_width, window_height);
-		update_scaling();
-	};
-
-	const transform_window_canvas = position => {
-		const {a, d, e: tx, f: ty} = context_image.getTransform();
-		return {
-			x: (position.x - tx) / a,
-			y: (position.y - ty) / d,
-		};
-	};
-
-	const transform_canvas_image = position => {
-		return {
-			x: (position.x - offset_x) / scale,
-			y: (position.y - offset_y) / scale,
-		};
-	};
-
-	const transform_image_canvas = position => {
-		return {
-			x: position.x * scale + offset_x,
-			y: position.y * scale + offset_y,
-		};
-	};
-
-	const transform_box_image_canvas = box => {
-		return {
-			x: box.x * scale + offset_x,
-			y: box.y * scale + offset_y,
-			width: box.width * scale,
-			height: box.height * scale,
-		};
-	};
-
-	const clear_canvas = () => {
-		context_image.clearRect(
-			0, 0, canvas_image.width, canvas_image.height);
-		context_boxes.clearRect(
-			0, 0, canvas_boxes.width, canvas_boxes.height);
-	};
-
-	const translate = canvas_position_delta => {
-		clear_canvas();
-
-		context_image.translate(
-			canvas_position_delta.x, canvas_position_delta.y);
-		context_boxes.translate(
-			canvas_position_delta.x, canvas_position_delta.y);
-	};
-
-	let image = new_image;
-
-	const context_image = canvas_image.getContext("2d");
-	const context_boxes = canvas_boxes.getContext("2d");
-
-	update_canvas_dimensions(window_width, window_height);
-
-	image.src = canvas_image.toDataURL('image/png');
-	image.width = window_width;
-	image.height = window_height;
-
-	let offset_x = 0;
-	let offset_y = 0;
-	let scale = 1;
-	update_scaling()
-
-	const box_width = 1;
-	const lines_width = 1;
-	const text_offset = 4;
-	const box_colour = 'red'
-	const box_edge_colour = 'red'
-
-	return {
-		draw_all: (
-			label_map, annotations, canvas_position, points,
-			label_index, annotations_index, edge, annotations_hide) => {
-
-			draw_image();
-
-			clear_boxes();
-			draw_boxes(
-				label_map, annotations, annotations_index,
-				edge, annotations_hide);
-
-			const colour = label_colour(label_map, label_index);
-			draw_lines(canvas_position, colour);
-			draw_points(points, colour);
-
-		},
-		set_image: new_image => {
-			image = new_image;
-			update_scaling();
-		},
-		reset_scale,
-		transform_window_canvas,
-		transform_canvas_image,
-		translate,
-		translate_to_box: box => {
-			const canvas_box = transform_box_image_canvas(box)
-			const canvas_mid = transform_window_canvas(
-				{x: window_width / 2, y: window_height / 2});
-			const canvas_delta = {
-				x: canvas_mid.x - (canvas_box.x + canvas_box.width / 2),
-				y: canvas_mid.y - (canvas_box.y + canvas_box.height / 2),
-			};
-			translate(canvas_delta);
-		},
-		zoom: (canvas_position, factor) => {
-			clear_canvas();
-
-			context_image.translate(canvas_position.x, canvas_position.y);
-			context_image.scale(factor, factor);
-			context_image.translate(-canvas_position.x, -canvas_position.y);
-
-			context_boxes.translate(canvas_position.x, canvas_position.y);
-			context_boxes.scale(factor, factor);
-			context_boxes.translate(-canvas_position.x, -canvas_position.y);
-		}
-	};
-};
-
 const label_colour = (label_map, index) =>
 	label_map[Object.keys(label_map)[index]];
 
@@ -484,16 +76,19 @@ document.addEventListener(
 		const file_label_map = document.getElementById('file-label-map');
 		const file_gcs = document.getElementById('file-gcs');
 
-		const canvas_image = document.getElementById('canvas-image');
-		const canvas_boxes = document.getElementById('canvas-boxes');
+		const canvas = document.getElementById('canvas');
 
 		const save = document.getElementById('save');
 		const download = document.getElementById('download');
 
 		let image = new Image();
+		image.src = canvas.toDataURL('image/png');
+		image.width = window.innerWidth;
+		image.height = window.innerHeight;
 
+		const transformer = Transformer(canvas);
 		const drawer = Drawer(
-			canvas_image, canvas_boxes, image,
+			canvas, transformer, image,
 			window.innerWidth, window.innerHeight);
 
 		let annotator = Annotator([], window.URL.createObjectURL);
@@ -650,20 +245,20 @@ document.addEventListener(
 		file_gcs.addEventListener('change', load_gcs);
 
 		const mouse_position = event => {
-			const rect = canvas_boxes.getBoundingClientRect();
+			const rect = canvas.getBoundingClientRect();
 			const position = {
 				x: event.clientX - rect.left,
 				y: event.clientY - rect.top,
 			};
-			return drawer.transform_window_canvas(position)
+			return transformer.window_to_canvas_position(position)
 		};
 
 		// Zoom
-		canvas_boxes.addEventListener(
+		canvas.addEventListener(
 			'wheel',
 			event => {
 				position = mouse_position(event);
-				const point = drawer.transform_canvas_image(position);
+				const point = transformer.canvas_to_image_position(position);
 				if (
 					annotator.is_box_selected() &&
 					point_in_box(point.x, point.y, annotator.get_box())) {
@@ -695,7 +290,7 @@ document.addEventListener(
 			},
 			{passive: true});
 
-		canvas_boxes.addEventListener(
+		canvas.addEventListener(
 			'mousedown',
 			event => {
 				// Middle click
@@ -708,7 +303,7 @@ document.addEventListener(
 						position = mouse_position(event);
 						const overlap_indices = find_best_annotations_indices(
 							annotator.get_boxes(),
-							drawer.transform_canvas_image(position));
+							transformer.canvas_to_image_position(position));
 						if (
 							JSON.stringify(overlap_indices) ==
 							JSON.stringify(last_overlap_indices)) {
@@ -724,7 +319,7 @@ document.addEventListener(
 							last_overlap_indices =
 								find_best_annotations_indices(
 									annotator.get_boxes(),
-									drawer.transform_canvas_image(position));
+									transformer.canvas_to_image_position(position));
 							if (last_overlap_indices.length) {
 								edge = -1;
 								annotator.set_box_index(
@@ -749,7 +344,7 @@ document.addEventListener(
 				} else if (event.which === 1  || event.button === 0) {
 					if (!clicker.get_active()) {
 						position = mouse_position(event);
-						const point = drawer.transform_canvas_image(position);
+						const point = transformer.canvas_to_image_position(position);
 						move = position;
 						if (
 							annotator.is_box_selected() &&
@@ -763,7 +358,7 @@ document.addEventListener(
 				}
 			});
 
-		canvas_boxes.addEventListener(
+		canvas.addEventListener(
 			'mouseup',
 			event => {
 				// Left button drag
@@ -784,7 +379,7 @@ document.addEventListener(
 				}
 			});
 
-		canvas_boxes.addEventListener(
+		canvas.addEventListener(
 			'mousemove',
 			event => {
 				position = mouse_position(event);
@@ -800,12 +395,12 @@ document.addEventListener(
 						move = position;
 						moved = true;
 					} else if (shifting) {
-						const point = drawer.transform_canvas_image(position);
+						const point = transformer.canvas_to_image_position(position);
 						const box = annotator.get_box();
 						if (point_in_box(point.x, point.y, box)) {
-							const before = drawer.transform_canvas_image(move);
+							const before = transformer.canvas_to_image_position(move);
 							const after =
-								drawer.transform_canvas_image(position);
+								transformer.canvas_to_image_position(position);
 							const delta = {
 								x: after.x - before.x,
 								y: after.y - before.y,
@@ -824,7 +419,7 @@ document.addEventListener(
 					annotator.get_box_index(), edge, annotations_hide);
 			});
 
-		canvas_boxes.addEventListener(
+		canvas.addEventListener(
 			'click',
 			event => {
 				let redraw = false;
@@ -833,7 +428,7 @@ document.addEventListener(
 					// Left button add point
 					if (event.which === 1  || event.button === 0) {
 						position = mouse_position(event);
-						const point = drawer.transform_canvas_image(position);
+						const point = transformer.canvas_to_image_position(position);
 						const image_box = {
 							x: 0, y: 0,
 							width: image.width, height: image.height
@@ -857,7 +452,7 @@ document.addEventListener(
 						position = mouse_position(event);
 						const overlap_indices = find_best_annotations_indices(
 							annotator.get_boxes(),
-							drawer.transform_canvas_image(position));
+							transformer.canvas_to_image_position(position));
 						if (
 							JSON.stringify(overlap_indices) !==
 							JSON.stringify(last_overlap_indices)) {
@@ -898,13 +493,13 @@ document.addEventListener(
 			});
 
 		// Reset scale
-		canvas_boxes.addEventListener(
+		canvas.addEventListener(
 			'dblclick',
 			event => {
 				position = mouse_position(event);
 				const overlap_indices = find_best_annotations_indices(
 					annotator.get_boxes(),
-					drawer.transform_canvas_image(position));
+					transformer.canvas_to_image_position(position));
 				if (!overlap_indices.length) {
 					annotator.reset_box_index();
 					drawer.reset_scale(window.innerWidth, window.innerHeight);
