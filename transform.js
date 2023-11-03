@@ -57,4 +57,3 @@ const Transformer = canvas => {
 		image_to_canvas_box,
 	};
 };
-

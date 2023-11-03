@@ -144,8 +144,7 @@ document.addEventListener(
 
 		const load_images = event => {
 			const files = Array.from(event.target.files);
-			annotator = Annotator(
-				files, window.URL.createObjectURL);
+			annotator = Annotator(files, window.URL.createObjectURL);
 
 			load_image(
 				annotator.get_url(),
@@ -223,19 +222,18 @@ document.addEventListener(
 							{headers: {'Authorization': 'Bearer ' + token}});
 						if (response.ok) {
 							const response_data = await response.blob();
-							response.name = image_path;
-							files.push(response);
+							response_data.name = image_path;
+							files.push(response_data);
 						}
 					}
-					annotator = Annotator(
-						files, window.URL.createObjectURL);
+					annotator = Annotator(files, window.URL.createObjectURL);
 
 					load_image(
 						annotator.get_url(),
 						annotator.get_boxes(),
 						annotator.get_box_index());
-						};
-						reader.readAsText(event.target.files[0]);
+				};
+				reader.readAsText(event.target.files[0]);
 			}
 		};
 
@@ -528,7 +526,7 @@ document.addEventListener(
 				});
 
 				const zip_blob = await zip.generateAsync({type: 'blob'});
-				const zip_url = URL.createObjectURL(zip_blob);
+				const zip_url = window.URL.createObjectURL(zip_blob);
 
 				const date = new Date();
 				download.setAttribute('href', zip_url);
