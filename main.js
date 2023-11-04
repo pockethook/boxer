@@ -16,58 +16,6 @@ const find_best_annotations_indices = (annotations, position) => {
 		.map(box => annotations.findIndex(annotation => annotation === box));
 };
 
-const shift_left = (annotations, annotations_index, edge) => {
-	const box = annotations[annotations_index];
-	if (edge === 3) {
-		box.x -= 1;
-		box.width += 1;
-	} else if (edge === 1) {
-		box.width -= 1;
-	} else {
-		return false;
-	}
-	return true;
-}
-
-const shift_down = (annotations, annotations_index, edge) => {
-	const box = annotations[annotations_index];
-	if (edge === 2) {
-		box.height += 1;
-	} else if (edge === 0) {
-		box.y += 1;
-		box.height -= 1;
-	} else {
-		return false;
-	}
-	return true;
-}
-
-const shift_up = (annotations, annotations_index, edge) => {
-	const box = annotations[annotations_index];
-	if (edge === 0) {
-		box.y -= 1;
-		box.height += 1;
-	} else if (edge === 2) {
-		box.height -= 1;
-	} else {
-		return false;
-	}
-	return true;
-}
-
-const shift_right = (annotations, annotations_index, edge) => {
-	const box = annotations[annotations_index];
-	if (edge === 1) {
-		box.width += 1;
-	} else if (edge === 3) {
-		box.x += 1;
-		box.width -= 1;
-	} else {
-		return false;
-	}
-	return true;
-}
-
 document.addEventListener(
 	"DOMContentLoaded",
 	() => {
@@ -129,8 +77,6 @@ document.addEventListener(
 
 		let cancel_click = true;
 
-		let edge = 0;
-
 		const load_image = (url, boxes, box_index) => {
 			image = new Image();
 			image.onload = () => {
@@ -140,7 +86,7 @@ document.addEventListener(
 					image, label_map, annotator.get_boxes(),
 					position, clicker.get_points(),
 					label_index, annotator.get_box_index(),
-					edge, annotations_hide);
+					annotator.get_box_edge(), annotations_hide);
 				annotator.reset_box_index();
 			};
 			image.src = url;
@@ -289,7 +235,7 @@ document.addEventListener(
 					image, label_map, annotator.get_boxes(),
 					position, clicker.get_points(),
 					label_index, annotator.get_box_index(),
-					edge, annotations_hide);
+					annotator.get_box_edge(), annotations_hide);
 			},
 			{passive: true});
 
@@ -325,12 +271,12 @@ document.addEventListener(
 									transformer.canvas_to_image_position(
 										position));
 							if (last_overlap_indices.length) {
-								edge = -1;
+								annotator.reset_box_edge();
 								annotator.set_box_index(
 									last_overlap_indices[
 										overlap_indicies_index]);
 							} else {
-								edge = -1;
+								annotator.reset_box_edge();
 								annotator.reset_box_index();
 								overlap_indicies_index = -1;
 							}
@@ -342,7 +288,7 @@ document.addEventListener(
 							image, label_map, annotator.get_boxes(),
 							position, clicker.get_points(),
 							label_index, annotator.get_box_index(),
-							edge,
+							annotator.get_box_edge(),
 							annotations_hide);
 					}
 				// Left button drag
@@ -425,7 +371,7 @@ document.addEventListener(
 					image, label_map, annotator.get_boxes(),
 					position, clicker.get_points(),
 					label_index, annotator.get_box_index(),
-					edge, annotations_hide);
+					annotator.get_box_edge(), annotations_hide);
 			});
 
 		canvas.addEventListener(
@@ -469,7 +415,7 @@ document.addEventListener(
 							overlap_indicies_index = -1;
 						}
 						if (overlap_indices.length) {
-							edge = -1;
+							annotator.reset_box_edge();
 							if (!event.shiftKey) {
 								overlap_indicies_index =
 									(overlap_indicies_index + 1) %
@@ -484,7 +430,7 @@ document.addEventListener(
 							annotator.set_box_index(
 								overlap_indices[overlap_indicies_index]);
 						} else {
-							edge = -1;
+							annotator.reset_box_edge();
 							annotator.reset_box_index();
 							overlap_indicies_index = -1;
 						}
@@ -498,7 +444,7 @@ document.addEventListener(
 						image, label_map, annotator.get_boxes(),
 						position, clicker.get_points(),
 						label_index, annotator.get_box_index(),
-						edge,
+						annotator.get_box_edge(),
 						annotations_hide);
 				}
 			});
@@ -511,19 +457,23 @@ document.addEventListener(
 				const overlap_indices = find_best_annotations_indices(
 					annotator.get_boxes(),
 					transformer.canvas_to_image_position(position));
-				if (!overlap_indices.length) {
+				if (overlap_indices.length) {
+					annotator.set_box_index(overlap_indices[0]);
+					transformer.translate_to_box(
+						annotator.get_box());
+				} else {
 					annotator.reset_box_index();
 					transformer.set_dimensions(
 						window.innerWidth, window.innerHeight);
 					transformer.reset_scale(image.width, image.height);
 					transformer.reset_offset(image.width, image.height);
-					drawer.draw(
-						image, label_map, annotator.get_boxes(),
-						position, clicker.get_points(),
-						label_index, annotator.get_box_index(),
-						edge,
-						annotations_hide);
 				}
+				drawer.draw(
+					image, label_map, annotator.get_boxes(),
+					position, clicker.get_points(),
+					label_index, annotator.get_box_index(),
+					annotator.get_box_edge(),
+					annotations_hide);
 			});
 
 		// Save
@@ -571,7 +521,7 @@ document.addEventListener(
 					switch (event.key) {
 						// Normal mode
 						case 'Escape':
-							edge = -1;
+							annotator.reset_box_edge();
 							annotator.reset_box_index();
 							clicker.deactivate();
 							redraw = true;
@@ -579,7 +529,7 @@ document.addEventListener(
 
 						// Insert mode
 						case 'r':
-							edge = -1;
+							annotator.reset_box_edge();
 							annotator.reset_box_index();
 							clicker.activate();
 							redraw = true;
@@ -610,12 +560,7 @@ document.addEventListener(
 						// Grow left
 						case 's':
 							if (annotator.is_box_selected()) {
-								if (!shift_left(
-									annotator.get_boxes(),
-									annotator.get_box_index(), edge)) {
-
-									edge = 3;
-								}
+								annotator.shift_box_edge_left()
 								redraw = true;
 							}
 							break;
@@ -624,12 +569,7 @@ document.addEventListener(
 						// Next file
 						case 'f':
 							if (annotator.is_box_selected()) {
-								if (!shift_down(
-									annotator.get_boxes(),
-									annotator.get_box_index(), edge)) {
-
-									edge = 2;
-								}
+								annotator.shift_box_edge_down();
 								redraw = true;
 							} else {
 								annotator.next_file();
@@ -644,12 +584,7 @@ document.addEventListener(
 						// Previous file
 						case 'd':
 							if (annotator.is_box_selected()) {
-								if (!shift_up(
-									annotator.get_boxes(),
-									annotator.get_box_index(), edge)) {
-
-									edge = 0;
-								}
+								annotator.shift_box_edge_up();
 								redraw = true;
 							} else {
 								annotator.previous_file();
@@ -663,12 +598,7 @@ document.addEventListener(
 						// Grow down
 						case 'g':
 							if (annotator.is_box_selected()) {
-								if (!shift_right(
-									annotator.get_boxes(),
-									annotator.get_box_index(), edge)) {
-
-									edge = 1;
-								}
+								annotator.shift_box_edge_right();
 								redraw = true;
 							}
 							break;
@@ -676,7 +606,7 @@ document.addEventListener(
 						// Next box
 						case 'F':
 							if (annotator.get_boxes()) {
-								edge = -1;
+								annotator.reset_box_edge();
 								annotator.next_box()
 								transformer.translate_to_box(
 									annotator.get_box());
@@ -687,7 +617,7 @@ document.addEventListener(
 						// Previous box
 						case 'D':
 							if (annotator.get_boxes()) {
-								edge = -1;
+								annotator.reset_box_edge();
 								annotator.previous_box()
 								transformer.translate_to_box(
 									annotator.get_box());
@@ -727,7 +657,7 @@ document.addEventListener(
 						image, label_map, annotator.get_boxes(),
 						position, clicker.get_points(),
 						label_index, annotator.get_box_index(),
-						edge, annotations_hide);
+						annotator.get_box_edge(), annotations_hide);
 				}
 			});
 	});

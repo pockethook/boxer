@@ -8,6 +8,7 @@ const Annotator = (files, create_object_url) => {
 
 	let file_index = files.length > 0 ? 0 : -1;
 	let box_index = -1;
+	let box_edge = 0;
 
 	const next_file = () => {
 		file_index = (file_index + 1) % files.length;
@@ -69,6 +70,59 @@ const Annotator = (files, create_object_url) => {
 		}
 	};
 
+	const get_box_edge = () => {
+		return box_edge;
+	};
+	const reset_box_edge = () => {
+		box_edge = -1;
+	};
+	const shift_box_edge_left = () => {
+		const box = get_box();
+		if (box_edge === 3) {
+			box.x -= 1;
+			box.width += 1;
+		} else if (box_edge === 1) {
+			box.width -= 1;
+		} else {
+			box_edge = 3;
+		}
+	};
+	const shift_box_edge_down = () => {
+		const box = get_box();
+		if (box_edge === 2) {
+			box.height += 1;
+		} else if (box_edge === 0) {
+			box.y += 1;
+			box.height -= 1;
+		} else {
+			box_edge = 2;
+		}
+	}
+
+	const shift_box_edge_up = () => {
+		const box = get_box();
+		if (box_edge === 0) {
+			box.y -= 1;
+			box.height += 1;
+		} else if (box_edge === 2) {
+			box.height -= 1;
+		} else {
+			box_edge = 0;
+		}
+	}
+
+	const shift_box_edge_right = () => {
+		const box = get_box();
+		if (box_edge === 1) {
+			box.width += 1;
+		} else if (box_edge === 3) {
+			box.x += 1;
+			box.width -= 1;
+		} else {
+			box_edge = 1;
+		}
+	}
+
 	return {
 		next_file,
 		previous_file,
@@ -84,6 +138,12 @@ const Annotator = (files, create_object_url) => {
 		next_box,
 		previous_box,
 		push_box,
+		get_box_edge,
+		reset_box_edge,
+		shift_box_edge_left,
+		shift_box_edge_down,
+		shift_box_edge_up,
+		shift_box_edge_right,
 	};
 };
 
