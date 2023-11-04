@@ -1,10 +1,10 @@
 "use strict"
 
-const Annotator = (files, create_object_url) => {
-	files = Array.from(files);
-	const urls = files.map(file => create_object_url(file));
-	const names = files.map(file => file.name);
-	const annotations = files.map(() => []);
+const Annotator = (create_object_url) => {
+	let files = [];
+	let urls = [];
+	let names = [];
+	let annotations = [];
 
 	let file_index = files.length > 0 ? 0 : -1;
 	let box_index = -1;
@@ -20,11 +20,15 @@ const Annotator = (files, create_object_url) => {
 	const get_names = () => {
 		return names;
 	};
-	const get_boxes = () => {
-		return annotations[file_index];
+	const get_boxes = index => {
+		if (index === undefined) {
+			return annotations[file_index];
+		} else {
+			return annotations[index];
+		}
 	};
-	const set_boxes = index => {
-		return annotations[index];
+	const set_boxes = (index, boxes) => {
+		annotations[index] = boxes;
 	};
 
 	const get_url = () => {
@@ -131,6 +135,71 @@ const Annotator = (files, create_object_url) => {
 		box.y = cy - side / 2;
 	};
 
+	const base_names = () => {
+		return names.map(name => name.split('.').slice(0, -1).join('.'));
+	}
+	const load_boxes_jsons = async json_files => {
+		json_files.forEach(json_file => {
+			const base_name = json_file.name.split('.').slice(0, -1).join('.');
+			const index = base_names().indexOf(base_name);
+			if (index >= 0) {
+				const reader = new FileReader();
+				reader.onload = () => {
+					annotations[index] = JSON.parse(reader.result);
+				};
+				reader.readAsText(json_file, 'utf-8');
+			}
+		})
+	};
+	const load_boxes_zip = async zip_file => {
+		const zip = new JSZip();
+		const data = await zip.loadAsync(zip_file);
+		base_names().forEach((base_name, index) => {
+			const json_path = base_name + '.json';
+			if (json_path in data.files) {
+				data.file(json_path).async('string').then(
+					json_data => {
+						annotations[index] = JSON.parse(json_data);
+					});
+			}
+		});
+	};
+	const load_images = images => {
+		files = Array.from(images);
+		urls = files.map(file => create_object_url(file));
+		names = files.map(file => file.name);
+		annotations = files.map(() => []);
+		file_index = files.length > 0 ? 0 : -1;
+	};
+	const load_images_gcs = async json_file => {
+		const reader = new FileReader();
+		reader.onload = async () => {
+			const data = JSON.parse(reader.result);
+			const token = data['token'];
+			const bucket = data['bucket'];
+			const base_url =
+				'https://storage.googleapis.com/storage/v1/b/' +
+				bucket + '/o/';
+			const image_paths = data['images'];
+			images = [];
+			for (const image_path of image_paths) {
+				const response = await fetch(
+					base_url + encodeURIComponent(image_path) + '?alt=media',
+					{headers: {'Authorization': 'Bearer ' + token}});
+				if (response.ok) {
+					const response_data = await response.blob();
+					response_data.name = image_path;
+					images.push(response_data);
+				}
+			}
+			load_images(files)
+			urls = files.map(file => create_object_url(file));
+			names = files.map(file => file.name);
+			annotations = files.map(() => []);
+		};
+		reader.readAsText(json_file);
+	};
+
 	return {
 		next_file,
 		previous_file,
@@ -153,6 +222,10 @@ const Annotator = (files, create_object_url) => {
 		shift_box_edge_up,
 		shift_box_edge_right,
 		square_box,
+		load_boxes_jsons,
+		load_boxes_zip,
+		load_images,
+		load_images_gcs,
 	};
 };
 

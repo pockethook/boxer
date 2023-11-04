@@ -41,7 +41,7 @@ document.addEventListener(
 		transformer.reset_scale(image.width, image.height);
 		transformer.reset_offset(image.width, image.height);
 
-		let annotator = Annotator([], window.URL.createObjectURL);
+		let annotator = Annotator(window.URL.createObjectURL);
 		let annotations_hide = false;
 
 		let last_overlap_indices = [];
@@ -94,7 +94,7 @@ document.addEventListener(
 
 		const load_images = event => {
 			const files = Array.from(event.target.files);
-			annotator = Annotator(files, window.URL.createObjectURL);
+			annotator.load_images(files);
 
 			load_image(
 				annotator.get_url(),
@@ -108,39 +108,10 @@ document.addEventListener(
 
 			// Zip file
 			if (event.target.files[0].name.split('.').pop() === 'zip') {
-				const zip = new JSZip();
-				const data = await zip.loadAsync(event.target.files[0]);
-				files.forEach((file, index) => {
-					const base_name =
-						file.name.split('.').slice(0, -1).join('.');
-					const file_index = base_names.indexOf(base_name);
-					if (file_index >= 0) {
-						const json_path = base_name + '.json';
-						const png_path = base_name + '.png';
-						if (json_path in data.files) {
-							data.file(json_path).async('string').then(
-								json_data => {
-									annotator.set_boxes(file_index) =
-										JSON.parse(json_data);
-								});
-						}
-					}
-				});
-			// JSONs
+				annotator.load_boxes_zip(event.target.files[0]);
+			// JSON files
 			} else {
-				Array.from(event.target.files).forEach(file => {
-					const base_name =
-						file.name.split('.').slice(0, -1).join('.');
-					const file_index = base_names.indexOf(base_name);
-					if (file_index >= 0) {
-						const reader = new FileReader();
-						reader.onload = () => {
-							annotator.get_boxes(base_name) =
-								JSON.parse(reader.result);
-						};
-						reader.readAsText(file, 'utf-8');
-					}
-				})
+				annotator.load_boxes_jsons(Array.from(event.target.files));
 			}
 		};
 
@@ -155,35 +126,12 @@ document.addEventListener(
 
 		const load_gcs = async event => {
 			if (event.target.files[0].name.split('.').pop() === 'json') {
-				const reader = new FileReader();
-				reader.onload = async () => {
-					const data = JSON.parse(reader.result);
-					const token = data['token'];
-					const bucket = data['bucket'];
-					const base_url =
-						'https://storage.googleapis.com/storage/v1/b/' +
-						bucket + '/o/';
-					const image_paths = data['images'];
-					let files = [];
-					for (const image_path of image_paths) {
-						const response = await fetch(
-							base_url + encodeURIComponent(image_path) +
-							'?alt=media',
-							{headers: {'Authorization': 'Bearer ' + token}});
-						if (response.ok) {
-							const response_data = await response.blob();
-							response_data.name = image_path;
-							files.push(response_data);
-						}
-					}
-					annotator = Annotator(files, window.URL.createObjectURL);
-
+				annotator.load_gcs(event.target.files[0]).then(() => {
 					load_image(
 						annotator.get_url(),
 						annotator.get_boxes(),
 						annotator.get_box_index());
-				};
-				reader.readAsText(event.target.files[0]);
+				});
 			}
 		};
 
@@ -483,13 +431,11 @@ document.addEventListener(
 				const zip = new JSZip();
 
 				annotator.get_names().forEach((name, index) => {
-					if (annotator.get_boxes()) {
-						const json_data =
-							JSON.stringify(annotator.get_boxes());
-						const json_path = name
-							.split('.').slice(0, -1).join('.') + '.json';
-						zip.file(json_path, json_data);
-					}
+					const json_data =
+						JSON.stringify(annotator.get_boxes(index));
+					const json_path =
+						name.split('.').slice(0, -1).join('.') + '.json';
+					zip.file(json_path, json_data);
 				});
 
 				const zip_blob = await zip.generateAsync({type: 'blob'});
