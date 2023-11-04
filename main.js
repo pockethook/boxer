@@ -125,14 +125,12 @@ document.addEventListener(
 		};
 
 		const load_gcs = async event => {
-			if (event.target.files[0].name.split('.').pop() === 'json') {
-				annotator.load_gcs(event.target.files[0]).then(() => {
-					load_image(
-						annotator.get_url(),
-						annotator.get_boxes(),
-						annotator.get_box_index());
-				});
-			}
+			annotator.load_images_gcs(event.target.files[0]).then(() => {
+				load_image(
+					annotator.get_url(),
+					annotator.get_boxes(),
+					annotator.get_box_index());
+			});
 		};
 
 		file_images.addEventListener('change', load_images);

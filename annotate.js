@@ -136,7 +136,10 @@ const Annotator = (create_object_url) => {
 	};
 
 	const base_names = () => {
-		return names.map(name => name.split('.').slice(0, -1).join('.'));
+		return names.map(
+			name => name
+				.split('/').splice(-1)[0]
+				.split('.').slice(0, -1).join('.'));
 	}
 	const load_boxes_jsons = async json_files => {
 		json_files.forEach(json_file => {
@@ -172,32 +175,33 @@ const Annotator = (create_object_url) => {
 		file_index = files.length > 0 ? 0 : -1;
 	};
 	const load_images_gcs = async json_file => {
-		const reader = new FileReader();
-		reader.onload = async () => {
-			const data = JSON.parse(reader.result);
-			const token = data['token'];
-			const bucket = data['bucket'];
-			const base_url =
-				'https://storage.googleapis.com/storage/v1/b/' +
-				bucket + '/o/';
-			const image_paths = data['images'];
-			images = [];
-			for (const image_path of image_paths) {
-				const response = await fetch(
-					base_url + encodeURIComponent(image_path) + '?alt=media',
-					{headers: {'Authorization': 'Bearer ' + token}});
-				if (response.ok) {
-					const response_data = await response.blob();
-					response_data.name = image_path;
-					images.push(response_data);
+		return new Promise((resolve, reject) => {
+			const reader = new FileReader();
+			reader.onload = async () => {
+				const data = JSON.parse(reader.result);
+				const token = data['token'];
+				const bucket = data['bucket'];
+				const base_url =
+					'https://storage.googleapis.com/storage/v1/b/' +
+					bucket + '/o/';
+				const image_paths = data['images'];
+				let images = [];
+				for (const image_path of image_paths) {
+					const response = await fetch(
+						base_url +
+							encodeURIComponent(image_path) + '?alt=media',
+						{headers: {'Authorization': 'Bearer ' + token}});
+					if (response.ok) {
+						const response_data = await response.blob();
+						response_data.name = image_path;
+						images.push(response_data);
+					}
 				}
-			}
-			load_images(files)
-			urls = files.map(file => create_object_url(file));
-			names = files.map(file => file.name);
-			annotations = files.map(() => []);
-		};
-		reader.readAsText(json_file);
+				resolve(load_images(images));
+			};
+			reader.onerror = () => reject(reader.error);
+			reader.readAsText(json_file);
+		});
 	};
 
 	return {
