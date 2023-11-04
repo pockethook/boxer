@@ -153,29 +153,10 @@ document.addEventListener(
 			event => {
 				position = mouse_position(event);
 				const point = transformer.canvas_to_image_position(position);
-				if (
-					annotator.is_box_selected() &&
-					point_in_box(point.x, point.y, annotator.get_box())) {
-					const box = annotator.get_box();
-					if (point_in_box(point.x, point.y, box)) {
-						if (event.deltaY < 0) {
-							box['x'] += 0.5;
-							box['y'] += 0.5;
-							box['width'] -= 1;
-							box['height'] -= 1;
-						} else {
-							box['x'] -= 0.5;
-							box['y'] -= 0.5;
-							box['width'] += 1;
-							box['height'] += 1;
-						}
-					}
+				if (event.deltaY < 0) {
+					transformer.zoom(position, 1.2);
 				} else {
-					if (event.deltaY < 0) {
-						transformer.zoom(position, 1.2);
-					} else {
-						transformer.zoom(position, 1 / 1.2);
-					}
+					transformer.zoom(position, 1 / 1.2);
 				}
 				drawer.draw(
 					image, label_map, annotator.get_boxes(),
