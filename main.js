@@ -393,7 +393,7 @@ document.addEventListener(
 							clicker.click(point);
 							if (clicker.is_complete()) {
 								const label =
-									Object.keys(label_map)[label_index]
+									Object.keys(label_map)[label_index];
 								annotator.push_box(clicker.box(label));
 								clicker.deactivate();
 							}
