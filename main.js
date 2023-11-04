@@ -87,9 +87,11 @@ document.addEventListener(
 		image.height = window.innerHeight;
 
 		const transformer = Transformer(canvas);
-		const drawer = Drawer(
-			canvas, transformer, image,
-			window.innerWidth, window.innerHeight);
+		const drawer = Drawer(canvas, transformer);
+
+		transformer.set_dimensions(window.innerWidth, window.innerHeight);
+		transformer.reset_scale(image.width, image.height);
+		transformer.reset_offset(image.width, image.height);
 
 		let annotator = Annotator([], window.URL.createObjectURL);
 		let annotations_hide = false;
@@ -132,14 +134,16 @@ document.addEventListener(
 		const load_image = (url, boxes, box_index) => {
 			image = new Image();
 			image.onload = () => {
-				drawer.set_image(image);
-				drawer.draw_all(
-					label_map, boxes,
-					position, clicker.get_points(), label_index,
-					box_index, edge, annotations_hide);
+				transformer.reset_scale(image.width, image.height);
+				transformer.reset_offset(image.width, image.height);
+				drawer.draw(
+					image, label_map, annotator.get_boxes(),
+					position, clicker.get_points(),
+					label_index, annotator.get_box_index(),
+					edge, annotations_hide);
+				annotator.reset_box_index();
 			};
 			image.src = url;
-			annotator.reset_box_index();
 		};
 
 		const load_images = event => {
@@ -276,15 +280,16 @@ document.addEventListener(
 					}
 				} else {
 					if (event.deltaY < 0) {
-						drawer.zoom(position, 1.2);
+						transformer.zoom(position, 1.2);
 					} else {
-						drawer.zoom(position, 1 / 1.2);
+						transformer.zoom(position, 1 / 1.2);
 					}
 				}
-				drawer.draw_all(
-					label_map, annotator.get_boxes(),
-					position, clicker.get_points(), label_index,
-					annotator.get_box_index(), edge, annotations_hide);
+				drawer.draw(
+					image, label_map, annotator.get_boxes(),
+					position, clicker.get_points(),
+					label_index, annotator.get_box_index(),
+					edge, annotations_hide);
 			},
 			{passive: true});
 
@@ -317,7 +322,8 @@ document.addEventListener(
 							last_overlap_indices =
 								find_best_annotations_indices(
 									annotator.get_boxes(),
-									transformer.canvas_to_image_position(position));
+									transformer.canvas_to_image_position(
+										position));
 							if (last_overlap_indices.length) {
 								edge = -1;
 								annotator.set_box_index(
@@ -332,17 +338,19 @@ document.addEventListener(
 							annotator.get_boxes().splice(
 								overlap_indices[0], 1);
 						}
-						drawer.draw_all(
-							label_map, annotator.get_boxes(),
-							position, clicker.get_points(), label_index,
-							annotator.get_box_index(), edge,
+						drawer.draw(
+							image, label_map, annotator.get_boxes(),
+							position, clicker.get_points(),
+							label_index, annotator.get_box_index(),
+							edge,
 							annotations_hide);
 					}
 				// Left button drag
 				} else if (event.which === 1  || event.button === 0) {
 					if (!clicker.get_active()) {
 						position = mouse_position(event);
-						const point = transformer.canvas_to_image_position(position);
+						const point =
+							transformer.canvas_to_image_position(position);
 						move = position;
 						if (
 							annotator.is_box_selected() &&
@@ -388,15 +396,17 @@ document.addEventListener(
 							x: position.x - move.x,
 							y: position.y - move.y,
 						};
-						drawer.translate(delta);
+						transformer.translate(delta);
 						position = mouse_position(event);
 						move = position;
 						moved = true;
 					} else if (shifting) {
-						const point = transformer.canvas_to_image_position(position);
+						const point =
+							transformer.canvas_to_image_position(position);
 						const box = annotator.get_box();
 						if (point_in_box(point.x, point.y, box)) {
-							const before = transformer.canvas_to_image_position(move);
+							const before =
+								transformer.canvas_to_image_position(move);
 							const after =
 								transformer.canvas_to_image_position(position);
 							const delta = {
@@ -411,10 +421,11 @@ document.addEventListener(
 					}
 				}
 				// Also need to draw lines if not dragging
-				drawer.draw_all(
-					label_map, annotator.get_boxes(),
-					position, clicker.get_points(), label_index,
-					annotator.get_box_index(), edge, annotations_hide);
+				drawer.draw(
+					image, label_map, annotator.get_boxes(),
+					position, clicker.get_points(),
+					label_index, annotator.get_box_index(),
+					edge, annotations_hide);
 			});
 
 		canvas.addEventListener(
@@ -426,7 +437,8 @@ document.addEventListener(
 					// Left button add point
 					if (event.which === 1  || event.button === 0) {
 						position = mouse_position(event);
-						const point = transformer.canvas_to_image_position(position);
+						const point =
+							transformer.canvas_to_image_position(position);
 						const image_box = {
 							x: 0, y: 0,
 							width: image.width, height: image.height
@@ -482,10 +494,11 @@ document.addEventListener(
 				}
 
 				if (redraw) {
-					drawer.draw_all(
-						label_map, annotator.get_boxes(),
-						position, clicker.get_points(), label_index,
-						annotator.get_box_index(), edge,
+					drawer.draw(
+						image, label_map, annotator.get_boxes(),
+						position, clicker.get_points(),
+						label_index, annotator.get_box_index(),
+						edge,
 						annotations_hide);
 				}
 			});
@@ -500,11 +513,15 @@ document.addEventListener(
 					transformer.canvas_to_image_position(position));
 				if (!overlap_indices.length) {
 					annotator.reset_box_index();
-					drawer.reset_scale(window.innerWidth, window.innerHeight);
-					drawer.draw_all(
-						label_map, annotator.get_boxes(),
-						position, clicker.get_points(), label_index,
-						annotator.get_box_index(), edge,
+					transformer.set_dimensions(
+						window.innerWidth, window.innerHeight);
+					transformer.reset_scale(image.width, image.height);
+					transformer.reset_offset(image.width, image.height);
+					drawer.draw(
+						image, label_map, annotator.get_boxes(),
+						position, clicker.get_points(),
+						label_index, annotator.get_box_index(),
+						edge,
 						annotations_hide);
 				}
 			});
@@ -620,7 +637,6 @@ document.addEventListener(
 									annotator.get_url(),
 									annotator.get_boxes(),
 									annotator.get_box_index());
-								redraw = true;
 							}
 							break;
 
@@ -641,7 +657,6 @@ document.addEventListener(
 									annotator.get_url(),
 									annotator.get_boxes(),
 									annotator.get_box_index());
-								redraw = true;
 							}
 							break;
 
@@ -663,7 +678,7 @@ document.addEventListener(
 							if (annotator.get_boxes()) {
 								edge = -1;
 								annotator.next_box()
-								drawer.translate_to_box(
+								transformer.translate_to_box(
 									annotator.get_box());
 								redraw = true;
 							}
@@ -674,7 +689,7 @@ document.addEventListener(
 							if (annotator.get_boxes()) {
 								edge = -1;
 								annotator.previous_box()
-								drawer.translate_to_box(
+								transformer.translate_to_box(
 									annotator.get_box());
 								redraw = true;
 							}
@@ -708,11 +723,11 @@ document.addEventListener(
 				}
 
 				if (redraw) {
-					drawer.draw_all(
-						label_map, annotator.get_boxes(),
-						position, clicker.get_points(), label_index,
-						annotator.get_box_index(), edge,
-						annotations_hide);
+					drawer.draw(
+						image, label_map, annotator.get_boxes(),
+						position, clicker.get_points(),
+						label_index, annotator.get_box_index(),
+						edge, annotations_hide);
 				}
 			});
 	});

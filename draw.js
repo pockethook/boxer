@@ -1,19 +1,15 @@
 "use strict"
 
-const ImageDrawer = (canvas, transformer, image) => {
+const ImageDrawer = (canvas, transformer) => {
 	const context = canvas.getContext("2d");
-	const set_image = new_image => {
-		image = new_image;
-	};
-	const draw_image = () => {
-		const scale = transformer.get_scale()
-		const [offset_x, offset_y] = transformer.get_offset()
+	const draw_image = image => {
+		const scale = transformer.get_image_scale();
+		const [offset_x, offset_y] = transformer.get_image_offset();
 		context.drawImage(
 			image, 0, 0, image.width, image.height,
 			offset_x, offset_y, image.width * scale, image.height * scale);
 	};
 	return {
-		set_image,
 		draw_image,
 	};
 };
@@ -88,18 +84,18 @@ const BoxDrawer = (canvas, transformer) => {
 	};
 
 	const draw_boxes = (
-		label_map, annotations, annotations_index, edge, annotations_hide) => {
+		label_map, boxes, box_index, edge, annotations_hide) => {
 
-		if (!annotations_hide && annotations) {
-			annotations.forEach((annotation, index) => draw_box(
+		if (!annotations_hide && boxes) {
+			boxes.forEach((annotation, index) => draw_box(
 				label_map,
 				annotation,
-				index === annotations_index,
-				index === annotations_index ? edge : -1));
+				index === box_index,
+				index === box_index ? edge : -1));
 		}
 
-		if (annotations_index >= 0 && annotations) {
-			draw_box(label_map, annotations[annotations_index], true, edge);
+		if (box_index >= 0 && boxes) {
+			draw_box(label_map, boxes[box_index], true, edge);
 		}
 	};
 
@@ -153,87 +149,28 @@ const OverlayDrawer = (canvas, transformer) => {
 	};
 };
 
-const Drawer = (
-	canvas, transformer, image, window_width, window_height) => {
+const Drawer = (canvas, transformer, boxes) => {
 	
-	const update_canvas_dimensions = (window_width, window_height) => {
-		canvas.width = window_width;
-		canvas.height = window_height;
-	};
-	const update_scaling = () => {
-		const scale_x = canvas.width / image.width;
-		const scale_y = canvas.height / image.height;
-		const scale = Math.min(scale_x, scale_y);
-		transformer.set_scale(scale);
-
-		const offset_x = (canvas.width - scale * image.width) / 2;
-		const offset_y = (canvas.height - scale * image.height) / 2;
-		transformer.set_offset(offset_x, offset_y);
-	};
-
-	const reset_scale = (window_width, window_height) => {
-		update_canvas_dimensions(window_width, window_height);
-		update_scaling();
-	};
-
-	const clear_canvas = () => {
-		const {a: sx, d: sy, e: tx, f: ty} = context.getTransform();
-		context.clearRect(
-			-tx / sx, -ty / sy , canvas.width / sx, canvas.height / sy);
-	};
-
-	const translate = canvas_position_delta => {
-		context.translate(canvas_position_delta.x, canvas_position_delta.y);
-	};
-
-	const context = canvas.getContext("2d");
-
-	reset_scale(window_width, window_height);
-
-	const image_drawer = ImageDrawer(canvas, transformer, image);
+	const image_drawer = ImageDrawer(canvas, transformer);
 	const box_drawer = BoxDrawer(canvas, transformer);
 	const overlay_drawer = OverlayDrawer(canvas, transformer);
 
 	return {
-		draw_all: (
-			label_map, annotations, canvas_position, points,
-			label_index, annotations_index, edge, annotations_hide) => {
+		draw: (
+			image, label_map, boxes, canvas_position, points,
+			label_index, box_index, edge, annotations_hide) => {
 
-			clear_canvas();
+			transformer.clear();
 
-			image_drawer.draw_image();
+			image_drawer.draw_image(image);
 
 			box_drawer.draw_boxes(
-				label_map, annotations, annotations_index,
+				label_map, boxes, box_index,
 				edge, annotations_hide);
 
 			const colour = label_colour(label_map, label_index);
 			overlay_drawer.draw_lines(canvas_position, colour);
 			overlay_drawer.draw_points(points, colour);
-
 		},
-		set_image: new_image => {
-			image = new_image;
-			image_drawer.set_image(image);
-			update_scaling();
-		},
-		reset_scale,
-		translate,
-		translate_to_box: box => {
-			const canvas_box = transformer.image_to_canvas_box(box)
-			const canvas_mid = transformer.window_to_canvas_position(
-				{x: window_width / 2, y: window_height / 2});
-			const canvas_delta = {
-				x: canvas_mid.x - (canvas_box.x + canvas_box.width / 2),
-				y: canvas_mid.y - (canvas_box.y + canvas_box.height / 2),
-			};
-			translate(canvas_delta);
-		},
-		zoom: (canvas_position, factor) => {
-
-			context.translate(canvas_position.x, canvas_position.y);
-			context.scale(factor, factor);
-			context.translate(-canvas_position.x, -canvas_position.y);
-		}
 	};
 };
