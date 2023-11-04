@@ -544,15 +544,7 @@ document.addEventListener(
 						// Make square
 						case 'x':
 							if (annotator.is_box_selected()) {
-								const box = annotator.get_box();
-								const cx = box['x'] + box['width'] / 2;
-								const cy = box['y'] + box['height'] / 2;
-								const edge = Math.min(
-									box['width'], box['height']);
-								box['width'] = edge;
-								box['height'] = edge;
-								box['x'] = cx - edge / 2;
-								box['y'] = cy - edge / 2;
+								annotator.square_box();
 								redraw = true;
 							}
 							break;

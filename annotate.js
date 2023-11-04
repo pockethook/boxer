@@ -98,7 +98,6 @@ const Annotator = (files, create_object_url) => {
 			box_edge = 2;
 		}
 	}
-
 	const shift_box_edge_up = () => {
 		const box = get_box();
 		if (box_edge === 0) {
@@ -110,7 +109,6 @@ const Annotator = (files, create_object_url) => {
 			box_edge = 0;
 		}
 	}
-
 	const shift_box_edge_right = () => {
 		const box = get_box();
 		if (box_edge === 1) {
@@ -122,6 +120,16 @@ const Annotator = (files, create_object_url) => {
 			box_edge = 1;
 		}
 	}
+	const square_box = () => {
+		const box = get_box();
+		const cx = box.x + box.width / 2;
+		const cy = box.y + box.height / 2;
+		const side = Math.min(box.width, box.height);
+		box.width = side;
+		box.height = side;
+		box.x = cx - side / 2;
+		box.y = cy - side / 2;
+	};
 
 	return {
 		next_file,
@@ -144,6 +152,7 @@ const Annotator = (files, create_object_url) => {
 		shift_box_edge_down,
 		shift_box_edge_up,
 		shift_box_edge_right,
+		square_box,
 	};
 };
 
