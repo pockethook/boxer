@@ -157,8 +157,15 @@ const Drawer = (canvas, transformer, boxes) => {
 
 	return {
 		draw: (
-			image, label_map, boxes, canvas_position, points,
-			label_index, box_index, edge, annotations_hide) => {
+			image,
+			boxes,
+			box_index,
+			label_index,
+			edge,
+			points,
+			canvas_position,
+			label_map,
+			annotations_hide) => {
 
 			transformer.clear();
 

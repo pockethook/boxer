@@ -29,19 +29,18 @@ document.addEventListener(
 		const save = document.getElementById('save');
 		const download = document.getElementById('download');
 
-		let image = new Image();
-		image.src = canvas.toDataURL('image/png');
-		image.width = window.innerWidth;
-		image.height = window.innerHeight;
+		const imager = Imager(
+			canvas.toDataURL('image/png'),
+			window.innerWidth, window.innerHeight);
 
 		const transformer = Transformer(canvas);
 		const drawer = Drawer(canvas, transformer);
 
 		transformer.set_dimensions(window.innerWidth, window.innerHeight);
-		transformer.reset_scale(image.width, image.height);
-		transformer.reset_offset(image.width, image.height);
+		transformer.reset_scale(imager.get_width(), imager.get_height());
+		transformer.reset_offset(imager.get_width(), imager.get_height());
 
-		let annotator = Annotator(window.URL.createObjectURL);
+		const annotator = Annotator(window.URL.createObjectURL);
 		let annotations_hide = false;
 
 		let last_overlap_indices = [];
@@ -77,29 +76,37 @@ document.addEventListener(
 
 		let cancel_click = true;
 
-		const load_image = (url, boxes, box_index) => {
-			image = new Image();
-			image.onload = () => {
-				transformer.reset_scale(image.width, image.height);
-				transformer.reset_offset(image.width, image.height);
-				drawer.draw(
-					image, label_map, annotator.get_boxes(),
-					position, clicker.get_points(),
-					label_index, annotator.get_box_index(),
-					annotator.get_box_edge(), annotations_hide);
-				annotator.reset_box_index();
-			};
-			image.src = url;
+		const draw = () => {
+			drawer.draw(
+				imager.get_image(),
+				annotator.get_boxes(),
+				annotator.get_box_index(),
+				label_index,
+				annotator.get_box_edge(),
+				clicker.get_points(),
+				position,
+				label_map,
+				annotations_hide);
+		};
+
+		const load_image = () => {
+			imager.set_image(
+				annotator.get_url(),
+				() => {
+					transformer.reset_scale(
+						imager.get_width(), imager.get_height());
+					transformer.reset_offset(
+						imager.get_width(), imager.get_height());
+					draw();
+					annotator.reset_box_index();
+				});
 		};
 
 		const load_images = event => {
 			const files = Array.from(event.target.files);
 			annotator.load_images(files);
 
-			load_image(
-				annotator.get_url(),
-				annotator.get_boxes(),
-				annotator.get_box_index());
+			load_image();
 		};
 
 		const load_annotations = async event => {
@@ -126,10 +133,7 @@ document.addEventListener(
 
 		const load_gcs = async event => {
 			annotator.load_images_gcs(event.target.files[0]).then(() => {
-				load_image(
-					annotator.get_url(),
-					annotator.get_boxes(),
-					annotator.get_box_index());
+				load_image();
 			});
 		};
 
@@ -158,11 +162,7 @@ document.addEventListener(
 				} else {
 					transformer.zoom(position, 1 / 1.2);
 				}
-				drawer.draw(
-					image, label_map, annotator.get_boxes(),
-					position, clicker.get_points(),
-					label_index, annotator.get_box_index(),
-					annotator.get_box_edge(), annotations_hide);
+				draw();
 			},
 			{passive: true});
 
@@ -211,12 +211,7 @@ document.addEventListener(
 							annotator.get_boxes().splice(
 								overlap_indices[0], 1);
 						}
-						drawer.draw(
-							image, label_map, annotator.get_boxes(),
-							position, clicker.get_points(),
-							label_index, annotator.get_box_index(),
-							annotator.get_box_edge(),
-							annotations_hide);
+						draw();
 					}
 				// Left button drag
 				} else if (event.which === 1  || event.button === 0) {
@@ -294,11 +289,7 @@ document.addEventListener(
 					}
 				}
 				// Also need to draw lines if not dragging
-				drawer.draw(
-					image, label_map, annotator.get_boxes(),
-					position, clicker.get_points(),
-					label_index, annotator.get_box_index(),
-					annotator.get_box_edge(), annotations_hide);
+				draw();
 			});
 
 		canvas.addEventListener(
@@ -313,8 +304,10 @@ document.addEventListener(
 						const point =
 							transformer.canvas_to_image_position(position);
 						const image_box = {
-							x: 0, y: 0,
-							width: image.width, height: image.height
+							x: 0,
+							y: 0,
+							width: imager.get_width(),
+							height: imager.get_height(),
 						};
 						if (point_in_box(point.x, point.y, image_box)) {
 							clicker.click(point);
@@ -367,12 +360,7 @@ document.addEventListener(
 				}
 
 				if (redraw) {
-					drawer.draw(
-						image, label_map, annotator.get_boxes(),
-						position, clicker.get_points(),
-						label_index, annotator.get_box_index(),
-						annotator.get_box_edge(),
-						annotations_hide);
+					draw();
 				}
 			});
 
@@ -392,15 +380,12 @@ document.addEventListener(
 					annotator.reset_box_index();
 					transformer.set_dimensions(
 						window.innerWidth, window.innerHeight);
-					transformer.reset_scale(image.width, image.height);
-					transformer.reset_offset(image.width, image.height);
+					transformer.reset_scale(
+						imager.get_width(), imager.get_height());
+					transformer.reset_offset(
+						imager.get_width(), imager.get_height());
 				}
-				drawer.draw(
-					image, label_map, annotator.get_boxes(),
-					position, clicker.get_points(),
-					label_index, annotator.get_box_index(),
-					annotator.get_box_edge(),
-					annotations_hide);
+				draw();
 			});
 
 		// Save
@@ -490,10 +475,7 @@ document.addEventListener(
 								redraw = true;
 							} else {
 								annotator.next_file();
-								load_image(
-									annotator.get_url(),
-									annotator.get_boxes(),
-									annotator.get_box_index());
+								load_image();
 							}
 							break;
 
@@ -505,10 +487,7 @@ document.addEventListener(
 								redraw = true;
 							} else {
 								annotator.previous_file();
-								load_image(
-									annotator.get_url(),
-									annotator.get_boxes(),
-									annotator.get_box_index());
+								load_image();
 							}
 							break;
 
@@ -570,11 +549,7 @@ document.addEventListener(
 				}
 
 				if (redraw) {
-					drawer.draw(
-						image, label_map, annotator.get_boxes(),
-						position, clicker.get_points(),
-						label_index, annotator.get_box_index(),
-						annotator.get_box_edge(), annotations_hide);
+					draw();
 				}
 			});
 	});
