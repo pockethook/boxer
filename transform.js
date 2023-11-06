@@ -1,6 +1,6 @@
-"use strict"
+'use strict';
 
-const Transformer = canvas => {
+export const Transformer = canvas => {
 	const context = canvas.getContext("2d");
 
 	let image_offset_x = 0;
@@ -28,6 +28,13 @@ const Transformer = canvas => {
 		image_scale = Math.min(scale_x, scale_y);
 	};
 
+	const viewport_to_window_position = position => {
+		const rect = canvas.getBoundingClientRect();
+		return {
+			x: position.x - rect.left,
+			y: position.y - rect.top,
+		};
+	};
 	const window_to_canvas_position = position => {
 		const {a, d, e: tx, f: ty} = context.getTransform();
 		return {
@@ -85,6 +92,7 @@ const Transformer = canvas => {
 		reset_offset,
 		get_image_scale,
 		reset_scale,
+		viewport_to_window_position,
 		window_to_canvas_position,
 		canvas_to_image_position,
 		image_to_canvas_position,

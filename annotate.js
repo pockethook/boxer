@@ -1,6 +1,6 @@
-"use strict"
+'use strict';
 
-const Annotator = (create_object_url) => {
+export const Annotator = create_object_url => {
 	let files = [];
 	let urls = [];
 	let names = [];

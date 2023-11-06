@@ -1,6 +1,6 @@
 "use strict"
 
-const Imager = (src, width, height) => {
+export const Imager = (src, width, height) => {
 	let image = new Image();
 	image.src = src;
 	image.width = width;

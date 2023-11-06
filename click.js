@@ -1,6 +1,6 @@
-"use strict"
+'use strict';
 
-const Clicker = () => {
+export const Clicker = () => {
 	let count = 0;
 	let active = false;
 	const points = [

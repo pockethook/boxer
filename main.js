@@ -1,7 +1,11 @@
-"use strict"
+'use strict';
 
-const label_colour = (label_map, index) =>
-	label_map[Object.keys(label_map)[index]];
+import { Imager } from './image.js';
+import { Drawer } from './draw.js';
+import { Annotator } from './annotate.js';
+import { Clicker } from './click.js';
+import { Mouse } from './mouse.js';
+import { Transformer } from './transform.js';
 
 const point_in_box = (x, y, box) => 
 	x >= box.x && x <= box.x + box.width &&
@@ -65,11 +69,10 @@ document.addEventListener(
 
 		const clicker = Clicker();
 
-		let position = {x: 0, y: 0};
+		const mouse = Mouse(transformer);
 
 		let moving = false;
 		let moved = false;
-		let move = {x: 0, y: 0};
 
 		let shifting = false;
 		let shifted = false;
@@ -84,7 +87,7 @@ document.addEventListener(
 				label_index,
 				annotator.get_box_edge(),
 				clicker.get_points(),
-				position,
+				mouse.get_mouse_canvas(),
 				label_map,
 				annotations_hide);
 		};
@@ -110,9 +113,6 @@ document.addEventListener(
 		};
 
 		const load_annotations = async event => {
-			const base_names = annotator.get_names().map(
-				name => name.split('.').slice(0, -1).join('.'));
-
 			// Zip file
 			if (event.target.files[0].name.split('.').pop() === 'zip') {
 				annotator.load_boxes_zip(event.target.files[0]);
@@ -142,25 +142,14 @@ document.addEventListener(
 		file_label_map.addEventListener('change', load_label_map);
 		file_gcs.addEventListener('change', load_gcs);
 
-		const mouse_position = event => {
-			const rect = canvas.getBoundingClientRect();
-			const position = {
-				x: event.clientX - rect.left,
-				y: event.clientY - rect.top,
-			};
-			return transformer.window_to_canvas_position(position)
-		};
-
 		// Zoom
 		canvas.addEventListener(
 			'wheel',
 			event => {
-				position = mouse_position(event);
-				const point = transformer.canvas_to_image_position(position);
 				if (event.deltaY < 0) {
-					transformer.zoom(position, 1.2);
+					transformer.zoom(mouse.get_mouse_canvas(), 1.2);
 				} else {
-					transformer.zoom(position, 1 / 1.2);
+					transformer.zoom(mouse.get_mouse_canvas(), 1 / 1.2);
 				}
 				draw();
 			},
@@ -170,56 +159,16 @@ document.addEventListener(
 			'mousedown',
 			event => {
 				// Middle click
-				if (event.which === 2 || event.button === 4) {
+				if (event.button === 4) {
 					// Remove last click
 					if (clicker.get_active()) {
 						clicker.decrease_count();
-					// Delete box
-					} else {
-						position = mouse_position(event);
-						const overlap_indices = find_best_annotations_indices(
-							annotator.get_boxes(),
-							transformer.canvas_to_image_position(position));
-						if (
-							JSON.stringify(overlap_indices) ==
-							JSON.stringify(last_overlap_indices)) {
-							annotator.get_boxes().splice(
-								overlap_indices[overlap_indicies_index], 1);
-
-							overlap_indicies_index +=
-								overlap_indices.length - 1;
-							overlap_indicies_index =
-								(overlap_indicies_index - 1) %
-								(overlap_indices.length - 1);
-
-							last_overlap_indices =
-								find_best_annotations_indices(
-									annotator.get_boxes(),
-									transformer.canvas_to_image_position(
-										position));
-							if (last_overlap_indices.length) {
-								annotator.reset_box_edge();
-								annotator.set_box_index(
-									last_overlap_indices[
-										overlap_indicies_index]);
-							} else {
-								annotator.reset_box_edge();
-								annotator.reset_box_index();
-								overlap_indicies_index = -1;
-							}
-						} else {
-							annotator.get_boxes().splice(
-								overlap_indices[0], 1);
-						}
-						draw();
 					}
 				// Left button drag
-				} else if (event.which === 1  || event.button === 0) {
+				} else if (event.button === 0) {
 					if (!clicker.get_active()) {
-						position = mouse_position(event);
-						const point =
-							transformer.canvas_to_image_position(position);
-						move = position;
+						mouse.set_mouse_viewport(event.clientX, event.clientY);
+						const point = mouse.get_mouse_image();
 						if (
 							annotator.is_box_selected() &&
 							point_in_box(
@@ -236,7 +185,7 @@ document.addEventListener(
 			'mouseup',
 			event => {
 				// Left button drag
-				if (event.which === 1  || event.button === 0) {
+				if (event.button === 0) {
 					if (moving) {
 						moving = false;
 						if (moved) {
@@ -256,36 +205,19 @@ document.addEventListener(
 		canvas.addEventListener(
 			'mousemove',
 			event => {
-				position = mouse_position(event);
+				mouse.set_mouse_viewport(event.clientX, event.clientY);
 				// Left button drag
-				if (event.which === 1  || event.button === 0) {
+				if (event.button === 0) {
 					if (moving) {
-						const delta = {
-							x: position.x - move.x,
-							y: position.y - move.y,
-						};
+						const delta = mouse.get_delta_canvas();
 						transformer.translate(delta);
-						position = mouse_position(event);
-						move = position;
 						moved = true;
 					} else if (shifting) {
-						const point =
-							transformer.canvas_to_image_position(position);
 						const box = annotator.get_box();
-						if (point_in_box(point.x, point.y, box)) {
-							const before =
-								transformer.canvas_to_image_position(move);
-							const after =
-								transformer.canvas_to_image_position(position);
-							const delta = {
-								x: after.x - before.x,
-								y: after.y - before.y,
-							};
-							box['x'] += delta.x;
-							box['y'] += delta.y;
-							move = position;
-							shifted = true;
-						}
+						const delta = mouse.get_delta_image();
+						box['x'] += delta.x;
+						box['y'] += delta.y;
+						shifted = true;
 					}
 				}
 				// Also need to draw lines if not dragging
@@ -299,10 +231,9 @@ document.addEventListener(
 				// Add/remove point
 				if (clicker.get_active()) {
 					// Left button add point
-					if (event.which === 1  || event.button === 0) {
-						position = mouse_position(event);
-						const point =
-							transformer.canvas_to_image_position(position);
+					if (event.button === 0) {
+						mouse.set_mouse_viewport(event.clientX, event.clientY);
+						const point = mouse.get_mouse_image();
 						const image_box = {
 							x: 0,
 							y: 0,
@@ -321,14 +252,14 @@ document.addEventListener(
 						}
 					}
 				// Left button select box for edit mode
-				} else if (event.which === 1  || event.button === 0) {
+				} else if (event.button === 0) {
 					if (cancel_click) {
 						cancel_click = false;
 					} else {
-						position = mouse_position(event);
+						mouse.set_mouse_viewport(event.clientX, event.clientY);
+						const point = mouse.get_mouse_image();
 						const overlap_indices = find_best_annotations_indices(
-							annotator.get_boxes(),
-							transformer.canvas_to_image_position(position));
+							annotator.get_boxes(), point);
 						if (
 							JSON.stringify(overlap_indices) !==
 							JSON.stringify(last_overlap_indices)) {
@@ -368,10 +299,10 @@ document.addEventListener(
 		canvas.addEventListener(
 			'dblclick',
 			event => {
-				position = mouse_position(event);
+				mouse.set_mouse_viewport(event.clientX, event.clientY);
+				const point = mouse.get_mouse_image();
 				const overlap_indices = find_best_annotations_indices(
-					annotator.get_boxes(),
-					transformer.canvas_to_image_position(position));
+					annotator.get_boxes(), point);
 				if (overlap_indices.length) {
 					annotator.set_box_index(overlap_indices[0]);
 					transformer.translate_to_box(

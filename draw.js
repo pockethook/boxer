@@ -1,4 +1,7 @@
-"use strict"
+'use strict';
+
+const label_colour = (label_map, index) =>
+	label_map[Object.keys(label_map)[index]];
 
 const ImageDrawer = (canvas, transformer) => {
 	const context = canvas.getContext("2d");
@@ -149,7 +152,7 @@ const OverlayDrawer = (canvas, transformer) => {
 	};
 };
 
-const Drawer = (canvas, transformer, boxes) => {
+export const Drawer = (canvas, transformer) => {
 	
 	const image_drawer = ImageDrawer(canvas, transformer);
 	const box_drawer = BoxDrawer(canvas, transformer);
