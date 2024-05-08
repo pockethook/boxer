@@ -65,6 +65,7 @@ const BoxDrawer = (canvas, transformer) => {
 		context.fillStyle = colour;
 		context.fillText(
 			box.label + ' ' +
+				Math.round(box.x) + ',' + Math.round(box.y) + ' ' +
 				Math.round(box.width) + 'x' + Math.round(box.height),
 			canvas_box.x, canvas_box.y - text_offset);
 	}
